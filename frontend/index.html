@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Support Bot</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="background-mesh"></div>
+
+<div class="chat-container">
+  <div class="header">
+    <div class="status-indicator"></div>
+    <div class="header-titles">
+      <h2>AI Assistant</h2>
+      <span>Online</span>
+    </div>
+  </div>
+
+  <div id="chat-box"></div>
+
+  <div class="input-area">
+    <textarea id="user-input" rows="1" placeholder="Ask your question..." autofocus></textarea>
+    <button onclick="sendMessage()" id="send-btn" aria-label="Send Message">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="22" y1="2" x2="11" y2="13"></line>
+        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+      </svg>
+    </button>
+  </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
