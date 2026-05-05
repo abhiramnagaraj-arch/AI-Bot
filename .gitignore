@@ -29,3 +29,6 @@ chroma/
 
 # Misc
 snapshot.txt
+*.pdf
+*.jsonl
+*.swp
