@@ -21,4 +21,4 @@ COPY . .
 EXPOSE 8000
 
 # Start the application
-CMD ["python", "server.py"]
+CMD ["python", "-m", "app.server"]

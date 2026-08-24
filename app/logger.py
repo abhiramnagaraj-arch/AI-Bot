@@ -1,8 +1,7 @@
 import json
-import os
 from datetime import datetime
 
-LOG_FILE = "pipeline_logs.jsonl"
+from .config import LOG_FILE
 
 def log_event(event_data):
     """
@@ -14,15 +13,15 @@ def log_event(event_data):
         **event_data
     }
     
-    with open(LOG_FILE, "a") as f:
+    with LOG_FILE.open("a", encoding="utf-8") as f:
         f.write(json.dumps(log_entry) + "\n")
 
 def get_logs():
-    if not os.path.exists(LOG_FILE):
+    if not LOG_FILE.exists():
         return []
     
     logs = []
-    with open(LOG_FILE, "r") as f:
+    with LOG_FILE.open("r", encoding="utf-8") as f:
         for line in f:
             logs.append(json.loads(line))
     return logs

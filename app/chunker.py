@@ -1,6 +1,6 @@
 import nltk
 from transformers import AutoTokenizer
-from config import CHUNK_SIZE_TOKENS, CHUNK_OVERLAP_TOKENS
+from .config import CHUNK_SIZE_TOKENS, CHUNK_OVERLAP_TOKENS
 
 # Ensure nltk data is downloaded (silent check)
 try:

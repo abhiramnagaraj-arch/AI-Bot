@@ -48,43 +48,50 @@ AI-Bot is a robust, production-ready Retrieval-Augmented Generation (RAG) system
    ```
 
 4. **Configuration:**
-   Update `config.py` with your settings if necessary.
+   Update `app/config.py` with your settings if necessary.
 
 5. **Run the CLI application:**
    ```bash
-   python main.py
+   python -m app.main
    ```
 
 6. **Run the Web Server:**
    ```bash
-   python server.py
+   python -m app.server
    ```
    The web UI will be available at `http://localhost:8000`.
 
 ### Docker Setup
 
 ```bash
-docker-compose up --build
+docker compose up --build
 ```
 
 ## 📂 Project Structure
 
 ```text
 AI-Bot/
-├── frontend/           # Web UI (HTML, CSS, JS)
-├── chroma_db/          # Persistent vector database storage
-├── main.py             # Pipeline orchestration & CLI interface
-├── server.py           # FastAPI server & API endpoints
-├── chunker.py          # Document splitting logic
-├── embedder.py         # Text embedding & intent classification
-├── retriever.py        # Similarity search & context retrieval
-├── vector_store.py     # ChromaDB management
-├── llm.py              # LLM interface (Ollama/HuggingFace)
-├── guardrails.py       # PII, Injection, & Grounding checks
-├── memory.py           # Conversation history management
-├── logger.py           # Event & performance logging
-├── config.py           # Global configuration
-└── requirements.txt    # Python dependencies
+├── app/                # Python application package
+│   ├── main.py         # Pipeline orchestration and CLI
+│   ├── server.py       # FastAPI server and API endpoints
+│   ├── pdf_loader.py   # PDF extraction and cleanup
+│   ├── chunker.py      # Document splitting
+│   ├── embedder.py     # Embeddings and intent classification
+│   ├── retriever.py    # Context retrieval
+│   ├── vector_store.py # ChromaDB access
+│   ├── llm.py          # Ollama interface
+│   ├── guardrails.py   # Input/output safety checks
+│   ├── memory.py       # Conversation history
+│   ├── logger.py       # JSONL event logging
+│   └── config.py       # Paths and model settings
+├── documents/          # Local source PDFs
+├── frontend/           # Static web UI
+├── docs/               # Project documentation
+├── runtime/            # Generated database and logs
+├── deleted/            # Recoverable discarded artifacts
+├── Dockerfile
+├── docker-compose.yml
+└── requirements.txt
 ```
 
 ## 🛡️ Guardrails & Safety
@@ -98,7 +105,3 @@ The system implements multiple layers of security:
 ## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

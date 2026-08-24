@@ -10,14 +10,14 @@ AI-Bot follows a standard Retrieval-Augmented Generation (RAG) pattern, enhanced
 
 ### 1. Data Ingestion & Preprocessing
 - **Source:** PDF documents.
-- **Loader (`data.py`):** Uses `pypdf` to extract raw text from documents.
-- **Chunker (`chunker.py`):** Segments text into manageable pieces using semantic or character-based strategies (supported by `nltk`).
+- **Loader (`app/pdf_loader.py`):** Uses `pypdf` to extract raw text from documents.
+- **Chunker (`app/chunker.py`):** Segments text into manageable pieces using semantic or character-based strategies (supported by `nltk`).
 
 ### 2. Knowledge Storage (Vector DB)
-- **Embedder (`embedder.py`):** Converts text chunks into high-dimensional vectors using `sentence-transformers`.
-- **Vector Store (`vector_store.py`):** Manages **ChromaDB** for persistent storage and fast similarity searching of embeddings.
+- **Embedder (`app/embedder.py`):** Converts text chunks into high-dimensional vectors using `sentence-transformers`.
+- **Vector Store (`app/vector_store.py`):** Manages **ChromaDB** for persistent storage and fast similarity searching of embeddings.
 
-### 3. Request Orchestration (`main.py`)
+### 3. Request Orchestration (`app/main.py`)
 The pipeline orchestrator manages the flow of data through several stages:
 1. **Input Guardrails:** Initial safety checks on the user's query.
 2. **Intent Classification:** Determines if the query is a greeting, a meta-question, or a knowledge request.
@@ -25,21 +25,21 @@ The pipeline orchestrator manages the flow of data through several stages:
 4. **Retrieval:** Fetches the most relevant chunks from ChromaDB based on embedding similarity.
 5. **Context Filtering:** Filters out chunks that fall below a similarity threshold or are deemed irrelevant.
 
-### 4. Safety & Guardrails (`guardrails.py`)
+### 4. Safety & Guardrails (`app/guardrails.py`)
 - **PII Redaction:** Uses regex and pattern matching to mask sensitive data.
 - **Injection Shield:** Detects common prompt injection patterns.
 - **Relevance Check:** Heuristic-based validation to ensure retrieved context matches the query intent.
 - **Grounding Validation:** (Post-processing) Checks if the generated answer is supported by the context.
 
-### 5. LLM Interface (`llm.py`)
+### 5. LLM Interface (`app/llm.py`)
 - Connects to LLM providers (defaulting to **Ollama** for local execution).
 - Handles prompt construction, injecting retrieved context into the system prompt for grounded generation.
 
-### 6. Memory Management (`memory.py`)
+### 6. Memory Management (`app/memory.py`)
 - Maintains a sliding window of the last `N` messages to provide conversational continuity.
 
 ### 7. API & Frontend
-- **FastAPI (`server.py`):** Exposes a RESTful `/chat` endpoint and serves the static frontend.
+- **FastAPI (`app/server.py`):** Exposes a RESTful `/chat` endpoint and serves the static frontend.
 - **Frontend (`frontend/`):** A lightweight SPA (Single Page Application) that communicates with the backend via JSON.
 
 ## Data Flow (Query to Answer)

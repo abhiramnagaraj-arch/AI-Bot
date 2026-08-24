@@ -1,14 +1,14 @@
 import sys
-from data import load_pdf
-from chunker import chunk_text
-from embedder import embed_texts, embed_query, get_intent
-from vector_store import store_embeddings
-from retriever import retrieve_context
-from llm import generate_answer, check_connection, generate_llm_direct
-from memory import ChatMemory
-from guardrails import redact_pii, detect_injection, validate_grounding, detect_leakage
-from logger import log_event, get_logs
-from config import SIMILARITY_THRESHOLD
+from .pdf_loader import load_pdf
+from .chunker import chunk_text
+from .embedder import embed_texts, embed_query, get_intent
+from .vector_store import store_embeddings
+from .retriever import retrieve_context
+from .llm import generate_answer, check_connection, generate_llm_direct
+from .memory import ChatMemory
+from .guardrails import redact_pii, detect_injection, validate_grounding, detect_leakage
+from .logger import log_event, get_logs
+from .config import SIMILARITY_THRESHOLD
 import time
 
 # Initialize Chat Memory
@@ -225,7 +225,7 @@ def run():
             path = input("PDF path: ")
             setup(path)
         elif choice == "2":
-            from vector_store import clear_collections
+            from .vector_store import clear_collections
             confirm = input("Are you sure? This will delete all stored chunks. (y/n): ")
             if confirm == "y":
                 clear_collections()

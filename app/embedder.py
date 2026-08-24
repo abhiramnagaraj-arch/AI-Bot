@@ -1,5 +1,5 @@
 from sentence_transformers import SentenceTransformer, util
-from config import MODEL_NAME
+from .config import MODEL_NAME
 
 model = SentenceTransformer(MODEL_NAME)
 

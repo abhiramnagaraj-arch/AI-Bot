@@ -11,14 +11,15 @@ venv/
 # Environment variables
 .env
 
-# Logs
+# Logs and generated runtime state
 *.log
+*.jsonl
+runtime/
 
 # OS files
 .DS_Store
 
 # LLM / Vector DB
-chroma_db/
 chroma/
 *.sqlite3
 
@@ -27,8 +28,10 @@ chroma/
 *.gguf
 *.pt
 
-# Misc
-snapshot.txt
+# Recoverable removed files
+deleted/*
+!deleted/README.md
+
+# Local documents and editor files
 *.pdf
-*.jsonl
 *.swp

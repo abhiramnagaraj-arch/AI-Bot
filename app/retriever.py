@@ -1,5 +1,5 @@
-from vector_store import get_collection
-from config import TOP_K
+from .vector_store import get_collection
+from .config import TOP_K
 
 def retrieve_context(query_embedding):
     """

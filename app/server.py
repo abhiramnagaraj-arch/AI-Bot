@@ -1,11 +1,10 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import time
-import os
-from main import run_pipeline
+from .config import FRONTEND_DIR
+from .main import run_pipeline
 
 app = FastAPI(title="RAG Bot API")
 
@@ -52,8 +51,8 @@ async def chat(request: ChatRequest):
 
 # Serve static files from the 'frontend' directory
 # This will serve index.html at '/' and other files like styles.css at their paths
-app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
+app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("server:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("app.server:app", host="0.0.0.0", port=8000, reload=True)

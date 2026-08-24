@@ -1,6 +1,6 @@
 import chromadb
 import hashlib
-from config import DB_PATH
+from .config import DB_PATH
 
 client = chromadb.PersistentClient(path=DB_PATH)
 

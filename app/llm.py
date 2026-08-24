@@ -1,6 +1,6 @@
 import requests
 import json
-from config import OLLAMA_URL, LLM_MODEL, MAX_TOKENS
+from .config import OLLAMA_URL, LLM_MODEL, MAX_TOKENS
 
 
 def check_connection():
