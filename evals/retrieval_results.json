@@ -1,0 +1,538 @@
+{
+  "mode": "retrieval",
+  "model": "gemma2:2b",
+  "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+  "embedding_revision": "1110a243fdf4706b3f48f1d95db1a4f5529b4d41",
+  "top_k": 6,
+  "cutoff": 0.25,
+  "cases": 50,
+  "answerable_cases": 45,
+  "retrieval_recall_at_k": 0.9777777777777777,
+  "p50_ms": 27.0,
+  "p95_ms": 51,
+  "limitations": "Small synthetic corpus. Source-level retrieval only; generation requires human review for claim support and citation correctness. Not a production quality certification.",
+  "results": [
+    {
+      "id": "q01",
+      "question": "How many days of annual leave do employees receive?",
+      "expected_source": "leave.md",
+      "retrieved_sources": [
+        "leave.md",
+        "travel.md",
+        "security.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 85
+    },
+    {
+      "id": "q02",
+      "question": "What is the yearly annual leave allowance?",
+      "expected_source": "leave.md",
+      "retrieved_sources": [
+        "leave.md",
+        "travel.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 149
+    },
+    {
+      "id": "q03",
+      "question": "State the number of annual leave days per calendar year.",
+      "expected_source": "leave.md",
+      "retrieved_sources": [
+        "leave.md",
+        "travel.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 59
+    },
+    {
+      "id": "q04",
+      "question": "How early must an annual leave request reach the manager?",
+      "expected_source": "leave.md",
+      "retrieved_sources": [
+        "leave.md",
+        "travel.md",
+        "security.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 51
+    },
+    {
+      "id": "q05",
+      "question": "What notice is required for annual leave?",
+      "expected_source": "leave.md",
+      "retrieved_sources": [
+        "leave.md",
+        "travel.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 36
+    },
+    {
+      "id": "q06",
+      "question": "How many working days before leave starts must I submit the request?",
+      "expected_source": "leave.md",
+      "retrieved_sources": [
+        "leave.md",
+        "travel.md",
+        "security.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 30
+    },
+    {
+      "id": "q07",
+      "question": "How many unused leave days can I carry over?",
+      "expected_source": "leave.md",
+      "retrieved_sources": [
+        "leave.md",
+        "travel.md",
+        "security.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 33
+    },
+    {
+      "id": "q08",
+      "question": "What is the cap on annual leave carryover?",
+      "expected_source": "leave.md",
+      "retrieved_sources": [
+        "leave.md",
+        "travel.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 21
+    },
+    {
+      "id": "q09",
+      "question": "Can all unused annual leave days be moved to next year?",
+      "expected_source": "leave.md",
+      "retrieved_sources": [
+        "leave.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 46
+    },
+    {
+      "id": "q10",
+      "question": "What is the paid sick leave allowance?",
+      "expected_source": "leave.md",
+      "retrieved_sources": [
+        "leave.md",
+        "travel.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 23
+    },
+    {
+      "id": "q11",
+      "question": "How many paid sick days are available each year?",
+      "expected_source": "leave.md",
+      "retrieved_sources": [
+        "leave.md",
+        "travel.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 26
+    },
+    {
+      "id": "q12",
+      "question": "State the annual number of paid sick leave days.",
+      "expected_source": "leave.md",
+      "retrieved_sources": [
+        "leave.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 27
+    },
+    {
+      "id": "q13",
+      "question": "What is the yearly limit on unpaid personal leave?",
+      "expected_source": "leave.md",
+      "retrieved_sources": [
+        "leave.md",
+        "travel.md",
+        "security.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 37
+    },
+    {
+      "id": "q14",
+      "question": "How many unpaid personal leave days may I take?",
+      "expected_source": "leave.md",
+      "retrieved_sources": [
+        "leave.md",
+        "travel.md",
+        "security.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 28
+    },
+    {
+      "id": "q15",
+      "question": "Who approves unpaid personal leave and what is its limit?",
+      "expected_source": "leave.md",
+      "retrieved_sources": [
+        "leave.md",
+        "travel.md",
+        "security.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 24
+    },
+    {
+      "id": "q16",
+      "question": "What is the nightly hotel reimbursement ceiling?",
+      "expected_source": "travel.md",
+      "retrieved_sources": [
+        "travel.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 25
+    },
+    {
+      "id": "q17",
+      "question": "How much may a hotel cost per night before taxes?",
+      "expected_source": "travel.md",
+      "retrieved_sources": [
+        "travel.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 22
+    },
+    {
+      "id": "q18",
+      "question": "What is the hotel expense cap excluding local taxes?",
+      "expected_source": "travel.md",
+      "retrieved_sources": [
+        "travel.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 21
+    },
+    {
+      "id": "q19",
+      "question": "What is the daily meal reimbursement cap?",
+      "expected_source": "travel.md",
+      "retrieved_sources": [
+        "travel.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 23
+    },
+    {
+      "id": "q20",
+      "question": "How much can I claim for meals per business travel day?",
+      "expected_source": "travel.md",
+      "retrieved_sources": [
+        "travel.md",
+        "leave.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 22
+    },
+    {
+      "id": "q21",
+      "question": "What meal allowance applies to approved travel?",
+      "expected_source": "travel.md",
+      "retrieved_sources": [
+        "travel.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 20
+    },
+    {
+      "id": "q22",
+      "question": "When must travel receipts be submitted?",
+      "expected_source": "travel.md",
+      "retrieved_sources": [
+        "travel.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 19
+    },
+    {
+      "id": "q23",
+      "question": "What is the deadline to submit receipts after a business trip?",
+      "expected_source": "travel.md",
+      "retrieved_sources": [
+        "travel.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 26
+    },
+    {
+      "id": "q24",
+      "question": "How many calendar days after travel ends can I submit receipts?",
+      "expected_source": "travel.md",
+      "retrieved_sources": [
+        "travel.md",
+        "leave.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 23
+    },
+    {
+      "id": "q25",
+      "question": "How early must business travel be approved?",
+      "expected_source": "travel.md",
+      "retrieved_sources": [
+        "travel.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 20
+    },
+    {
+      "id": "q26",
+      "question": "What advance approval period applies before departure?",
+      "expected_source": "travel.md",
+      "retrieved_sources": [
+        "travel.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 21
+    },
+    {
+      "id": "q27",
+      "question": "How many days before travel must a manager approve it?",
+      "expected_source": "travel.md",
+      "retrieved_sources": [
+        "travel.md",
+        "leave.md",
+        "security.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 22
+    },
+    {
+      "id": "q28",
+      "question": "When is business class permitted?",
+      "expected_source": "travel.md",
+      "retrieved_sources": [
+        "travel.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 28
+    },
+    {
+      "id": "q29",
+      "question": "What approval and flight duration are required for business class?",
+      "expected_source": "travel.md",
+      "retrieved_sources": [
+        "travel.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 31
+    },
+    {
+      "id": "q30",
+      "question": "Can an employee book business class for any flight?",
+      "expected_source": "travel.md",
+      "retrieved_sources": [
+        "travel.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 27
+    },
+    {
+      "id": "q31",
+      "question": "What is the minimum password length?",
+      "expected_source": "security.md",
+      "retrieved_sources": [
+        "security.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 17
+    },
+    {
+      "id": "q32",
+      "question": "How many characters must an employee password contain?",
+      "expected_source": "security.md",
+      "retrieved_sources": [
+        "security.md",
+        "leave.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 28
+    },
+    {
+      "id": "q33",
+      "question": "State the minimum employee account password character count.",
+      "expected_source": "security.md",
+      "retrieved_sources": [
+        "security.md",
+        "leave.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 28
+    },
+    {
+      "id": "q34",
+      "question": "When should an idle workstation lock?",
+      "expected_source": "security.md",
+      "retrieved_sources": [
+        "security.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 31
+    },
+    {
+      "id": "q35",
+      "question": "What is the workstation inactivity timeout?",
+      "expected_source": "security.md",
+      "retrieved_sources": [
+        "security.md",
+        "leave.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 22
+    },
+    {
+      "id": "q36",
+      "question": "After how many inactive minutes must a workstation lock?",
+      "expected_source": "security.md",
+      "retrieved_sources": [
+        "security.md",
+        "leave.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 29
+    },
+    {
+      "id": "q37",
+      "question": "How long are security access logs retained?",
+      "expected_source": "security.md",
+      "retrieved_sources": [
+        "security.md",
+        "leave.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 21
+    },
+    {
+      "id": "q38",
+      "question": "What retention period applies to access logs?",
+      "expected_source": "security.md",
+      "retrieved_sources": [
+        "security.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 19
+    },
+    {
+      "id": "q39",
+      "question": "For how many calendar days are security access logs stored?",
+      "expected_source": "security.md",
+      "retrieved_sources": [
+        "security.md",
+        "leave.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 30
+    },
+    {
+      "id": "q40",
+      "question": "How soon must a suspected security incident be reported?",
+      "expected_source": "security.md",
+      "retrieved_sources": [
+        "security.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 36
+    },
+    {
+      "id": "q41",
+      "question": "What is the incident reporting deadline after discovery?",
+      "expected_source": "security.md",
+      "retrieved_sources": [],
+      "retrieval_hit": false,
+      "time_ms": 22
+    },
+    {
+      "id": "q42",
+      "question": "Who receives a security incident report and within what time?",
+      "expected_source": "security.md",
+      "retrieved_sources": [
+        "security.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 29
+    },
+    {
+      "id": "q43",
+      "question": "How often must access permissions be reviewed?",
+      "expected_source": "security.md",
+      "retrieved_sources": [
+        "security.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 27
+    },
+    {
+      "id": "q44",
+      "question": "Who reviews permissions and how frequently?",
+      "expected_source": "security.md",
+      "retrieved_sources": [
+        "security.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 23
+    },
+    {
+      "id": "q45",
+      "question": "What is the required access review frequency?",
+      "expected_source": "security.md",
+      "retrieved_sources": [
+        "security.md"
+      ],
+      "retrieval_hit": true,
+      "time_ms": 15
+    },
+    {
+      "id": "q46",
+      "question": "What is the capital of France?",
+      "expected_source": null,
+      "retrieved_sources": [],
+      "retrieval_hit": null,
+      "time_ms": 20
+    },
+    {
+      "id": "q47",
+      "question": "What is the population of Tokyo?",
+      "expected_source": null,
+      "retrieved_sources": [],
+      "retrieval_hit": null,
+      "time_ms": 31
+    },
+    {
+      "id": "q48",
+      "question": "Who won the most recent football world championship?",
+      "expected_source": null,
+      "retrieved_sources": [],
+      "retrieval_hit": null,
+      "time_ms": 34
+    },
+    {
+      "id": "q49",
+      "question": "What is the employee annual base salary?",
+      "expected_source": null,
+      "retrieved_sources": [
+        "leave.md"
+      ],
+      "retrieval_hit": null,
+      "time_ms": 28
+    },
+    {
+      "id": "q50",
+      "question": "How many employees does the company have?",
+      "expected_source": null,
+      "retrieved_sources": [
+        "leave.md"
+      ],
+      "retrieval_hit": null,
+      "time_ms": 31
+    }
+  ]
+}

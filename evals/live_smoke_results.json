@@ -1,0 +1,57 @@
+{
+  "model": "gemma2:2b",
+  "results": [
+    {
+      "request_id": "live-smoke",
+      "session_id": "20f84d35985c485d8a7f4312a76ebde9",
+      "status": "answered",
+      "answer": "Employees receive 20 days of annual leave per calendar year. [S1]",
+      "sources": [
+        {
+          "citation_id": "S1",
+          "document_id": "43e1715bd50b4dd0bf3f87275261a9cd",
+          "version_id": "0c0b68491bbe48c0a9361e3a8108127e",
+          "filename": "policy.txt",
+          "page": null,
+          "excerpt": "Employee Leave Policy\nEmployees receive 20 days of annual leave per calendar year.\nRequests must be submitted to the employee's manager at least 5 working days before the first day of leave.\nUnused annual leave of up to 5 days may be carried into the next year.\nThis policy does not specify salary or bonus amounts.",
+          "url": "/api/v1/documents/43e1715bd50b4dd0bf3f87275261a9cd/source?version_id=0c0b68491bbe48c0a9361e3a8108127e"
+        }
+      ],
+      "time_ms": 14825
+    },
+    {
+      "request_id": "live-smoke",
+      "session_id": "20f84d35985c485d8a7f4312a76ebde9",
+      "status": "answered",
+      "answer": "Requests must be submitted to the employee's manager at least 5 working days before the first day of leave. [S1]",
+      "sources": [
+        {
+          "citation_id": "S1",
+          "document_id": "43e1715bd50b4dd0bf3f87275261a9cd",
+          "version_id": "0c0b68491bbe48c0a9361e3a8108127e",
+          "filename": "policy.txt",
+          "page": null,
+          "excerpt": "Employee Leave Policy\nEmployees receive 20 days of annual leave per calendar year.\nRequests must be submitted to the employee's manager at least 5 working days before the first day of leave.\nUnused annual leave of up to 5 days may be carried into the next year.\nThis policy does not specify salary or bonus amounts.",
+          "url": "/api/v1/documents/43e1715bd50b4dd0bf3f87275261a9cd/source?version_id=0c0b68491bbe48c0a9361e3a8108127e"
+        }
+      ],
+      "time_ms": 25443
+    },
+    {
+      "request_id": "live-smoke",
+      "session_id": "20f84d35985c485d8a7f4312a76ebde9",
+      "status": "insufficient_evidence",
+      "answer": "The provided evidence does not contain information about employee salaries.",
+      "sources": [],
+      "time_ms": 24680
+    },
+    {
+      "request_id": "live-smoke",
+      "session_id": "20f84d35985c485d8a7f4312a76ebde9",
+      "status": "insufficient_evidence",
+      "answer": "I couldn't find enough evidence in the selected documents to answer that. Try selecting another document or asking a more specific question.",
+      "sources": [],
+      "time_ms": 7329
+    }
+  ]
+}

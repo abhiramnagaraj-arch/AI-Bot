@@ -1,0 +1,495 @@
+[
+  {
+    "id": "q01",
+    "question": "How many days of annual leave do employees receive?",
+    "source": "leave.md",
+    "reference": "Employees receive 20 days of annual leave per calendar year.",
+    "reference_terms": [
+      "20"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q02",
+    "question": "What is the yearly annual leave allowance?",
+    "source": "leave.md",
+    "reference": "Employees receive 20 days of annual leave per calendar year.",
+    "reference_terms": [
+      "20"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q03",
+    "question": "State the number of annual leave days per calendar year.",
+    "source": "leave.md",
+    "reference": "Employees receive 20 days of annual leave per calendar year.",
+    "reference_terms": [
+      "20"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q04",
+    "question": "How early must an annual leave request reach the manager?",
+    "source": "leave.md",
+    "reference": "Annual leave requests must reach the manager at least 5 working days before leave starts.",
+    "reference_terms": [
+      "5"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q05",
+    "question": "What notice is required for annual leave?",
+    "source": "leave.md",
+    "reference": "Annual leave requests must reach the manager at least 5 working days before leave starts.",
+    "reference_terms": [
+      "5"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q06",
+    "question": "How many working days before leave starts must I submit the request?",
+    "source": "leave.md",
+    "reference": "Annual leave requests must reach the manager at least 5 working days before leave starts.",
+    "reference_terms": [
+      "5"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q07",
+    "question": "How many unused leave days can I carry over?",
+    "source": "leave.md",
+    "reference": "A maximum of 5 unused annual leave days can be carried into the next calendar year.",
+    "reference_terms": [
+      "5"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q08",
+    "question": "What is the cap on annual leave carryover?",
+    "source": "leave.md",
+    "reference": "A maximum of 5 unused annual leave days can be carried into the next calendar year.",
+    "reference_terms": [
+      "5"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q09",
+    "question": "Can all unused annual leave days be moved to next year?",
+    "source": "leave.md",
+    "reference": "A maximum of 5 unused annual leave days can be carried into the next calendar year.",
+    "reference_terms": [
+      "5"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q10",
+    "question": "What is the paid sick leave allowance?",
+    "source": "leave.md",
+    "reference": "Employees receive 7 days of paid sick leave per calendar year.",
+    "reference_terms": [
+      "7"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q11",
+    "question": "How many paid sick days are available each year?",
+    "source": "leave.md",
+    "reference": "Employees receive 7 days of paid sick leave per calendar year.",
+    "reference_terms": [
+      "7"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q12",
+    "question": "State the annual number of paid sick leave days.",
+    "source": "leave.md",
+    "reference": "Employees receive 7 days of paid sick leave per calendar year.",
+    "reference_terms": [
+      "7"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q13",
+    "question": "What is the yearly limit on unpaid personal leave?",
+    "source": "leave.md",
+    "reference": "Unpaid personal leave is limited to 10 working days per calendar year and requires manager approval.",
+    "reference_terms": [
+      "10"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q14",
+    "question": "How many unpaid personal leave days may I take?",
+    "source": "leave.md",
+    "reference": "Unpaid personal leave is limited to 10 working days per calendar year and requires manager approval.",
+    "reference_terms": [
+      "10"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q15",
+    "question": "Who approves unpaid personal leave and what is its limit?",
+    "source": "leave.md",
+    "reference": "Unpaid personal leave is limited to 10 working days per calendar year and requires manager approval.",
+    "reference_terms": [
+      "10"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q16",
+    "question": "What is the nightly hotel reimbursement ceiling?",
+    "source": "travel.md",
+    "reference": "The hotel reimbursement ceiling is USD 180 per night, excluding mandatory local taxes.",
+    "reference_terms": [
+      "180"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q17",
+    "question": "How much may a hotel cost per night before taxes?",
+    "source": "travel.md",
+    "reference": "The hotel reimbursement ceiling is USD 180 per night, excluding mandatory local taxes.",
+    "reference_terms": [
+      "180"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q18",
+    "question": "What is the hotel expense cap excluding local taxes?",
+    "source": "travel.md",
+    "reference": "The hotel reimbursement ceiling is USD 180 per night, excluding mandatory local taxes.",
+    "reference_terms": [
+      "180"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q19",
+    "question": "What is the daily meal reimbursement cap?",
+    "source": "travel.md",
+    "reference": "Meals are reimbursed up to USD 45 per day when travelling on approved business.",
+    "reference_terms": [
+      "45"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q20",
+    "question": "How much can I claim for meals per business travel day?",
+    "source": "travel.md",
+    "reference": "Meals are reimbursed up to USD 45 per day when travelling on approved business.",
+    "reference_terms": [
+      "45"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q21",
+    "question": "What meal allowance applies to approved travel?",
+    "source": "travel.md",
+    "reference": "Meals are reimbursed up to USD 45 per day when travelling on approved business.",
+    "reference_terms": [
+      "45"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q22",
+    "question": "When must travel receipts be submitted?",
+    "source": "travel.md",
+    "reference": "Travel receipts must be submitted within 30 calendar days after the trip ends.",
+    "reference_terms": [
+      "30"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q23",
+    "question": "What is the deadline to submit receipts after a business trip?",
+    "source": "travel.md",
+    "reference": "Travel receipts must be submitted within 30 calendar days after the trip ends.",
+    "reference_terms": [
+      "30"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q24",
+    "question": "How many calendar days after travel ends can I submit receipts?",
+    "source": "travel.md",
+    "reference": "Travel receipts must be submitted within 30 calendar days after the trip ends.",
+    "reference_terms": [
+      "30"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q25",
+    "question": "How early must business travel be approved?",
+    "source": "travel.md",
+    "reference": "Business travel requires manager approval at least 7 calendar days before departure.",
+    "reference_terms": [
+      "7"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q26",
+    "question": "What advance approval period applies before departure?",
+    "source": "travel.md",
+    "reference": "Business travel requires manager approval at least 7 calendar days before departure.",
+    "reference_terms": [
+      "7"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q27",
+    "question": "How many days before travel must a manager approve it?",
+    "source": "travel.md",
+    "reference": "Business travel requires manager approval at least 7 calendar days before departure.",
+    "reference_terms": [
+      "7"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q28",
+    "question": "When is business class permitted?",
+    "source": "travel.md",
+    "reference": "Flights must be booked in economy class. Business class requires director approval and flight duration over 8 hours.",
+    "reference_terms": [
+      "8",
+      "director"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q29",
+    "question": "What approval and flight duration are required for business class?",
+    "source": "travel.md",
+    "reference": "Flights must be booked in economy class. Business class requires director approval and flight duration over 8 hours.",
+    "reference_terms": [
+      "8",
+      "director"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q30",
+    "question": "Can an employee book business class for any flight?",
+    "source": "travel.md",
+    "reference": "Flights must be booked in economy class. Business class requires director approval and flight duration over 8 hours.",
+    "reference_terms": [
+      "8",
+      "director"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q31",
+    "question": "What is the minimum password length?",
+    "source": "security.md",
+    "reference": "Employee account passwords must contain at least 14 characters.",
+    "reference_terms": [
+      "14"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q32",
+    "question": "How many characters must an employee password contain?",
+    "source": "security.md",
+    "reference": "Employee account passwords must contain at least 14 characters.",
+    "reference_terms": [
+      "14"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q33",
+    "question": "State the minimum employee account password character count.",
+    "source": "security.md",
+    "reference": "Employee account passwords must contain at least 14 characters.",
+    "reference_terms": [
+      "14"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q34",
+    "question": "When should an idle workstation lock?",
+    "source": "security.md",
+    "reference": "Workstations must automatically lock after 15 minutes of inactivity.",
+    "reference_terms": [
+      "15"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q35",
+    "question": "What is the workstation inactivity timeout?",
+    "source": "security.md",
+    "reference": "Workstations must automatically lock after 15 minutes of inactivity.",
+    "reference_terms": [
+      "15"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q36",
+    "question": "After how many inactive minutes must a workstation lock?",
+    "source": "security.md",
+    "reference": "Workstations must automatically lock after 15 minutes of inactivity.",
+    "reference_terms": [
+      "15"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q37",
+    "question": "How long are security access logs retained?",
+    "source": "security.md",
+    "reference": "Security access logs are retained for 90 calendar days.",
+    "reference_terms": [
+      "90"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q38",
+    "question": "What retention period applies to access logs?",
+    "source": "security.md",
+    "reference": "Security access logs are retained for 90 calendar days.",
+    "reference_terms": [
+      "90"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q39",
+    "question": "For how many calendar days are security access logs stored?",
+    "source": "security.md",
+    "reference": "Security access logs are retained for 90 calendar days.",
+    "reference_terms": [
+      "90"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q40",
+    "question": "How soon must a suspected security incident be reported?",
+    "source": "security.md",
+    "reference": "Suspected security incidents must be reported to the security team within 1 hour of discovery.",
+    "reference_terms": [
+      "1"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q41",
+    "question": "What is the incident reporting deadline after discovery?",
+    "source": "security.md",
+    "reference": "Suspected security incidents must be reported to the security team within 1 hour of discovery.",
+    "reference_terms": [
+      "1"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q42",
+    "question": "Who receives a security incident report and within what time?",
+    "source": "security.md",
+    "reference": "Suspected security incidents must be reported to the security team within 1 hour of discovery.",
+    "reference_terms": [
+      "1"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q43",
+    "question": "How often must access permissions be reviewed?",
+    "source": "security.md",
+    "reference": "Access permissions must be reviewed once every quarter by the system owner.",
+    "reference_terms": [
+      "quarter"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q44",
+    "question": "Who reviews permissions and how frequently?",
+    "source": "security.md",
+    "reference": "Access permissions must be reviewed once every quarter by the system owner.",
+    "reference_terms": [
+      "quarter"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q45",
+    "question": "What is the required access review frequency?",
+    "source": "security.md",
+    "reference": "Access permissions must be reviewed once every quarter by the system owner.",
+    "reference_terms": [
+      "quarter"
+    ],
+    "expected_status": "answered"
+  },
+  {
+    "id": "q46",
+    "question": "What is the capital of France?",
+    "source": null,
+    "reference": null,
+    "reference_terms": [],
+    "expected_status": "insufficient_evidence"
+  },
+  {
+    "id": "q47",
+    "question": "What is the population of Tokyo?",
+    "source": null,
+    "reference": null,
+    "reference_terms": [],
+    "expected_status": "insufficient_evidence"
+  },
+  {
+    "id": "q48",
+    "question": "Who won the most recent football world championship?",
+    "source": null,
+    "reference": null,
+    "reference_terms": [],
+    "expected_status": "insufficient_evidence"
+  },
+  {
+    "id": "q49",
+    "question": "What is the employee annual base salary?",
+    "source": null,
+    "reference": null,
+    "reference_terms": [],
+    "expected_status": "insufficient_evidence"
+  },
+  {
+    "id": "q50",
+    "question": "How many employees does the company have?",
+    "source": null,
+    "reference": null,
+    "reference_terms": [],
+    "expected_status": "insufficient_evidence"
+  }
+]

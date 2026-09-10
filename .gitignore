@@ -35,3 +35,11 @@ deleted/*
 # Local documents and editor files
 *.pdf
 *.swp
+
+# Testing and local settings
+.pytest_cache/
+.ruff_cache/
+.coverage
+.env.*
+!.env.example
+*.backup.tar.gz

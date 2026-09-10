@@ -1,25 +1,34 @@
-from .vector_store import get_collection
-from .config import TOP_K
+from langchain_core.retrievers import BaseRetriever
+from pydantic import ConfigDict
 
-def retrieve_context(query_embedding):
-    """
-    Retrieves the top-k most relevant chunks from the cosine similarity collection.
-    """
-    col = get_collection()
-    res = col.query(
-        query_embeddings=query_embedding,
-        n_results=TOP_K,
-        include=["documents", "distances"]
-    )
+from .guardrails import detect_injection
 
-    docs = res["documents"][0]
-    distances = res["distances"][0]
 
-    # Convert distances to scores (Cosine distance to similarity)
-    # Cosine distance in Chroma is 1 - Cosine Similarity
-    results = []
-    for doc, dist in zip(docs, distances):
-        score = 1 - dist
-        results.append({"doc": doc, "score": score})
+class ScopedRetriever(BaseRetriever):
+    """A LangChain retriever whose scope is supplied by trusted server state."""
 
-    return results
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    index: object
+    owner: str
+    versions: list[str]
+    top_k: int
+
+    def _get_relevant_documents(self, query, *, run_manager):
+        matches = self.index.search(query, self.owner, self.versions)
+        result, seen = [], set()
+        for document, score in matches:
+            metadata = document.metadata
+            # Defense in depth even if a vector provider ignores its filter.
+            if (
+                metadata.get("owner") != self.owner
+                or metadata.get("version_id") not in self.versions
+            ):
+                continue
+            text = document.page_content.strip()
+            if text in seen or detect_injection(text):
+                continue
+            seen.add(text)
+            result.append(document)
+            if len(result) >= self.top_k:
+                break
+        return result
