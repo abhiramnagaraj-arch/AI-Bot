@@ -1,38 +1,45 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI Support Bot</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Folio · Document assistant</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/script.js" defer></script>
 </head>
 <body>
-
-<div class="background-mesh"></div>
-
-<div class="chat-container">
-  <div class="header">
-    <div class="status-indicator"></div>
-    <div class="header-titles">
-      <h2>AI Assistant</h2>
-      <span>Online</span>
-    </div>
-  </div>
-
-  <div id="chat-box"></div>
-
-  <div class="input-area">
-    <textarea id="user-input" rows="1" placeholder="Ask your question..." autofocus></textarea>
-    <button onclick="sendMessage()" id="send-btn" aria-label="Send Message">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <line x1="22" y1="2" x2="11" y2="13"></line>
-        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-      </svg>
-    </button>
-  </div>
-</div>
-
-<script src="script.js"></script>
+  <header><div><strong>Folio</strong><span>Your document assistant</span></div><button id="logout" hidden>Sign out</button></header>
+  <p id="notice" role="status" aria-live="polite"></p>
+  <form id="login-form" class="panel login" hidden>
+    <h1>Ask your documents.</h1>
+    <p>Upload a source, ask a question, and follow the references.</p>
+    <label>Username<input id="username" name="username" value="local" autocomplete="username" required maxlength="100"></label>
+    <label>Access key<input id="access-key" name="password" type="password" autocomplete="current-password" maxlength="512"></label>
+    <p class="muted">On this computer, use “local” with an empty key when no accounts are configured. Hosted accounts need a provisioned key.</p>
+    <button id="login-button" type="submit">Sign in</button>
+  </form>
+  <main id="workspace" hidden>
+    <aside class="panel">
+      <h2>Documents</h2>
+      <label class="upload">Add documents<input id="file-input" type="file" accept=".pdf,.txt,.md,.docx" multiple></label>
+      <p id="upload-help" class="muted">PDF, TXT, Markdown or DOCX. Scanned PDFs need OCR first.</p>
+      <div id="documents"></div>
+      <p id="scope" class="muted">Using all documents.</p>
+      <h2>Conversations</h2>
+      <label class="sr-only" for="sessions">Saved conversation</label>
+      <select id="sessions"><option value="">New conversation</option></select>
+      <div class="actions"><button id="new-chat">New chat</button><button id="delete-chat">Delete chat</button></div>
+    </aside>
+    <section class="panel chat" aria-label="Document conversation">
+      <div class="chat-heading"><h1>What would you like to know?</h1><p class="muted">Answers use your selected documents. Open references to check the source.</p></div>
+      <div id="messages" role="log" aria-live="polite"></div>
+      <form id="chat-form">
+        <label class="sr-only" for="question">Your question</label>
+        <textarea id="question" rows="3" maxlength="2000" placeholder="Ask a question about your documents…" required></textarea>
+        <div class="actions"><span id="activity" role="status" aria-live="polite">Ready</span><button id="send-button" type="submit">Send question</button></div>
+      </form>
+    </section>
+  </main>
+  <footer>Answers can be incomplete. Check cited passages for important details.</footer>
 </body>
 </html>
