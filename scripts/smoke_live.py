@@ -2,6 +2,7 @@
 Uses synthetic documents in an isolated temporary runtime; never reads user documents.
 """
 
+import io
 import json
 import os
 import tempfile
@@ -9,49 +10,28 @@ import time
 from pathlib import Path
 
 from app.config import Settings
-from app.schemas import ChatRequest
-from app.services import Services
+from app.documents import Documents
+from app.guardrails import ChatRequest
+from app.rag import RagService
+from app.storage import Store
 
 
 def main():
     with tempfile.TemporaryDirectory(prefix="folio-live-") as directory:
         root = Path(directory)
         settings = Settings(_env_file=None, data_dir=root, model_timeout=120)
-        svc = Services(settings)
-        source = root / "uploads" / "policy.txt"
+        store = Store(settings)
         content = """Employee Leave Policy
 Employees receive 20 days of annual leave per calendar year.
 Requests must be submitted to the employee's manager at least 5 working days before the first day of leave.
 Unused annual leave of up to 5 days may be carried into the next year.
 This policy does not specify salary or bonus amounts.
 """
-        source.write_text(content)
-        import hashlib
-
-        doc, job, _ = svc.store.enqueue(
-            "evaluation",
-            source.name,
-            source,
-            hashlib.sha256(content.encode()).hexdigest(),
-            len(content),
-            svc.fingerprint,
-        )
         print("Initializing actual embeddings and indexing synthetic policy...", flush=True)
-        svc.worker.run_one()
-        status = svc.store.job("evaluation", job)
-        print("Ingestion:", json.dumps(status), flush=True)
-        if status["status"] != "ready":
-            raise RuntimeError("Ingestion failed")
-        _, splitter, rag = svc.ai()
-        from langchain_core.runnables import RunnableLambda
-
-        def inspect_synthetic_draft(draft):
-            print("Synthetic structured draft:", draft.model_dump(), flush=True)
-            return draft
-
-        rag.answer_chain = rag.answer_chain | RunnableLambda(inspect_synthetic_draft)
-        print("Effective chunk tokens:", splitter._chunk_size, flush=True)
-        sid = svc.store.new_session("evaluation", "Live smoke test")["id"]
+        index = Documents(settings, store)
+        doc = index.ingest("evaluation", "policy.txt", io.BytesIO(content.encode()))["document_id"]
+        rag = RagService(settings, store, index)
+        sid = store.new_session("evaluation", "Live smoke test")["id"]
         queries = [
             "How many days of annual leave do employees receive?",
             "How far in advance must I request it?",

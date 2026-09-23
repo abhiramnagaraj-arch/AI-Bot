@@ -7,8 +7,6 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
-
-
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

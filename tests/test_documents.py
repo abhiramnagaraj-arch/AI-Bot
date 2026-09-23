@@ -5,8 +5,7 @@ from pypdf import PdfWriter
 from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 
 from app.config import Settings
-from app.ingestion import parse_document
-from app.pdf_loader import clean_text
+from app.documents import clean_text, parse_document
 
 
 def make_pdf(path, text=None):
@@ -90,16 +89,10 @@ def test_backup_restore_round_trip(tmp_path):
     store = Store(Settings(_env_file=None, data_dir=root))
     source = root / "uploads" / "policy.txt"
     source.write_text("Backup test")
-    doc, vid, _ = store.enqueue(
-        "alice",
-        "policy.txt",
-        source,
-        hashlib.sha256(source.read_bytes()).hexdigest(),
-        source.stat().st_size,
-        "test",
+    doc, _ = store.add_document(
+        "alice", "policy.txt", source, hashlib.sha256(source.read_bytes()).hexdigest(), "test"
     )
-    store.next_job()
-    store.publish(vid, 1, 1)
+    store.publish(doc, 1, 1)
     token = store.create_login("alice")
     archive = tmp_path / "snapshot.tar.gz"
     backup(root, archive)
@@ -114,26 +107,62 @@ def test_backup_restore_round_trip(tmp_path):
         restore(archive, destination)
 
 
-def test_cleanup_removes_derived_overview_content(tmp_path):
-    import hashlib
+def test_old_catalog_migration_preserves_ready_sources_and_cleans_pending(tmp_path):
+    import sqlite3
 
     from app.storage import Store
 
+    source = tmp_path / "uploads" / "policy.txt"
+    source.parent.mkdir()
+    source.write_text("Existing private document")
+    with sqlite3.connect(tmp_path / "metadata.sqlite3") as db:
+        db.executescript("""
+            CREATE TABLE documents (id TEXT PRIMARY KEY,active_version TEXT,deleted INTEGER);
+            CREATE TABLE versions (id TEXT PRIMARY KEY,document_id TEXT,owner TEXT,filename TEXT,
+                path TEXT,sha TEXT,size INTEGER,fingerprint TEXT,status TEXT,chunks INTEGER,
+                pages INTEGER,created REAL,summary TEXT);
+            INSERT INTO documents VALUES ('doc','version',0);
+        """)
+        db.execute(
+            "INSERT INTO versions VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                "version",
+                "doc",
+                "alice",
+                "policy.txt",
+                str(source),
+                "hash",
+                25,
+                "old-fingerprint",
+                "ready",
+                1,
+                1,
+                1.0,
+                "discarded overview",
+            ),
+        )
     store = Store(Settings(_env_file=None, data_dir=tmp_path))
-    source = tmp_path / "uploads" / "test.txt"
-    source.write_text("private overview content")
-    doc, vid, _ = store.enqueue(
-        "alice",
-        source.name,
-        source,
-        hashlib.sha256(source.read_bytes()).hexdigest(),
-        source.stat().st_size,
-        "test",
-    )
-    store.next_job()
-    store.publish(vid, 1, 1)
-    store.summary("alice", doc, "cache", {"answer": "private overview content"})
-    store.delete_document("alice", doc)
-    store.cleaned(vid)
+    assert store.source("alice", "doc", "version")[0].read_text() == "Existing private document"
+    assert store.active("alice")[0]["fingerprint"] == "old-fingerprint"
+    assert len(Store(store.settings).documents("alice")) == 1
     with store.connect() as db:
-        assert db.execute("SELECT summary FROM versions WHERE id=?", (vid,)).fetchone()[0] is None
+        assert not db.execute("SELECT 1 FROM sqlite_master WHERE name='versions'").fetchone()
+
+
+def test_parser_timeout_and_encrypted_pdf(tmp_path, monkeypatch):
+    import subprocess
+
+    path = tmp_path / "encrypted.pdf"
+    writer = PdfWriter()
+    writer.add_blank_page(width=100, height=100)
+    writer.encrypt("secret")
+    writer.write(path)
+    with pytest.raises(ValueError, match="Password-protected"):
+        parse_document(path, Settings(_env_file=None))
+
+    def timeout(*args, **kwargs):
+        raise subprocess.TimeoutExpired("parser", 1)
+
+    monkeypatch.setattr(subprocess, "run", timeout)
+    with pytest.raises(ValueError, match="time limit"):
+        parse_document(path, Settings(_env_file=None))

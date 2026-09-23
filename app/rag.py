@@ -1,24 +1,55 @@
-import hashlib
 import json
 import time
 
 import httpx
-from langchain_core.messages import AIMessage, HumanMessage
-from langchain_core.runnables import RunnableLambda, RunnablePassthrough
+from langchain_core.messages import AIMessage, HumanMessage, messages_from_dict, messages_to_dict
+from langchain_core.runnables import RunnableLambda
+from langchain_ollama import ChatOllama
 from ollama import ResponseError
 from pydantic import ValidationError
 
-from .guardrails import detect_injection, redact_pii, validate_citations, validate_query
-from .memory import SQLiteHistory, bounded_history
+from .guardrails import (
+    AnswerDraft,
+    AppError,
+    ChatResponse,
+    Rewrite,
+    Source,
+    detect_injection,
+    redact_pii,
+    validate_citations,
+    validate_query,
+)
 from .prompts import ANSWER_PROMPT, REWRITE_PROMPT
-from .retriever import ScopedRetriever
-from .schemas import AnswerDraft, AppError, ChatResponse, Rewrite, Source
 
 NO_EVIDENCE = "I couldn't find enough evidence in the selected documents to answer that. Try selecting another document or asking a more specific question."
 
 
+def bounded_history(messages, char_budget):
+    selected, used = [], 0
+    # Keep complete user/assistant pairs and strip stored citation metadata from prompts.
+
+    for i in range(len(messages) - 2, -1, -2):
+        pair = messages[i : i + 2]
+        if pair[1].additional_kwargs.get("status") == "blocked":
+            continue
+        cost = sum(len(str(m.content).encode("utf-8")) for m in pair)
+        if used + cost > char_budget:
+            break
+        selected[0:0] = [HumanMessage(str(pair[0].content)), AIMessage(str(pair[1].content))]
+        used += cost
+    return selected
+
+
 class RagService:
-    def __init__(self, settings, store, index, model):
+    def __init__(self, settings, store, index, model=None):
+        model = model or ChatOllama(
+            model=settings.model,
+            base_url=settings.ollama_base_url,
+            temperature=0,
+            num_ctx=settings.context_tokens,
+            num_predict=settings.output_tokens,
+            client_kwargs={"timeout": settings.model_timeout},
+        )
         self.settings, self.store, self.index = settings, store, index
         # Only transport errors retry; invalid answers never silently become successful text.
         answer_model = model.with_structured_output(AnswerDraft).with_retry(
@@ -26,30 +57,11 @@ class RagService:
         )
         self.answer_chain = ANSWER_PROMPT | answer_model
         self.rewrite_chain = REWRITE_PROMPT | model.with_structured_output(Rewrite)
-        stages = (
-            RunnableLambda(self.prepare, name="authorize_and_rewrite")
+        self.chain = (
+            RunnableLambda(self.prepare, name="resolve_question")
             | RunnableLambda(self.retrieve, name="retrieve_evidence")
             | RunnableLambda(self.generate, name="grounded_answer")
         )
-        # The installed Core version deprecates RunnableWithMessageHistory in favor
-        # of graph persistence. Keep this branch graph-free using explicit LCEL
-        # load/save stages and the supported BaseChatMessageHistory interface.
-        self.chain = (
-            RunnablePassthrough.assign(
-                history=RunnableLambda(
-                    lambda data: SQLiteHistory(store, data["owner"], data["session_id"]).messages,
-                    name="load_history",
-                )
-            )
-            | stages
-            | RunnableLambda(self.save_history, name="persist_validated_turn")
-        )
-
-    def save_history(self, data):
-        SQLiteHistory(self.store, data["owner"], data["session_id"]).add_messages(
-            [HumanMessage(data["question"]), data["history_message"]]
-        )
-        return data
 
     def prepare(self, data):
         data = dict(data)
@@ -82,13 +94,23 @@ class RagService:
         return data
 
     def retrieve(self, data):
-        retriever = ScopedRetriever(
-            index=self.index,
-            owner=data["owner"],
-            versions=[d["active_version"] for d in data["active"]],
-            top_k=self.settings.top_k,
-        )
-        data["documents"] = retriever.invoke(data["search_question"])
+        versions = [d["active_version"] for d in data["active"]]
+        matches = self.index.search(data["search_question"], data["owner"], versions)
+        documents, seen = [], set()
+        for doc, score in matches:
+            text = doc.page_content.strip()
+            if (
+                doc.metadata.get("owner") != data["owner"]
+                or doc.metadata.get("version_id") not in versions
+                or text in seen
+                or detect_injection(text)
+            ):
+                continue
+            seen.add(text)
+            documents.append(doc)
+            if len(documents) == self.settings.top_k:
+                break
+        data["documents"] = documents
         return data
 
     def generate(self, data):
@@ -173,84 +195,7 @@ class RagService:
             "answer": draft.answer,
             "sources": [s.model_dump() for s in sources],
         }
-        return {
-            **payload,
-            "evidence_count": len(records),
-            "owner": data["owner"],
-            "session_id": data["session_id"],
-            "question": data["question"],
-            "history_message": AIMessage(content=draft.answer, additional_kwargs=payload),
-        }
-
-    def overview(self, owner, doc_id, request_id):
-        start = time.monotonic()
-        active = self.store.active(owner, [doc_id])
-        if not active:
-            raise AppError(409, "document_not_ready", "Wait until this document finishes indexing.")
-        if active[0]["fingerprint"] != self.index.fingerprint:
-            raise AppError(
-                409, "reindex_required", "Re-upload this document with the current index settings."
-            )
-        key = hashlib.sha256(
-            (
-                self.settings.model
-                + str(ANSWER_PROMPT)
-                + str(self.settings.redact_pii)
-                + str(self.settings.context_tokens)
-                + str(self.settings.evidence_chars)
-            ).encode()
-        ).hexdigest()
-        cached = self.store.summary(owner, doc_id, key)
-        if cached:
-            return {**cached, "request_id": request_id, "time_ms": 0, "cached": True}
-        documents, total = self.index.overview(owner, active[0]["active_version"])
-        documents = [doc for doc in documents if not detect_injection(doc.page_content)]
-        try:
-            result = self.generate(
-                {
-                    "owner": owner,
-                    "session_id": "",
-                    "document_ids": [doc_id],
-                    "active": active,
-                    "documents": documents,
-                    "history": [],
-                    "question": "Give an overview of the topics, key facts, requirements and exceptions in these passages. Cite the evidence. Do not claim coverage beyond these passages.",
-                }
-            )
-        except httpx.TimeoutException:
-            raise AppError(
-                504, "model_timeout", "The overview took too long. Please retry."
-            ) from None
-        except (httpx.HTTPError, ResponseError):
-            raise AppError(
-                503, "model_unavailable", "The language model is currently unavailable."
-            ) from None
-        except (ValueError, ValidationError):
-            raise AppError(
-                502, "invalid_answer", "The model could not produce a validated overview."
-            ) from None
-        partial = result["evidence_count"] < total
-        answer = result["answer"]
-        if partial:
-            answer = (
-                f"Partial overview: based on {result['evidence_count']} of {total} indexed passages.\n\n"
-                + answer
-            )
-        payload = {
-            "status": result["status"],
-            "answer": answer,
-            "sources": result["sources"],
-            "partial": partial,
-            "passages_used": result["evidence_count"],
-            "total_passages": total,
-        }
-        self.store.summary(owner, doc_id, key, payload)
-        return {
-            **payload,
-            "request_id": request_id,
-            "time_ms": int((time.monotonic() - start) * 1000),
-            "cached": False,
-        }
+        return payload
 
     def chat(self, owner, request, request_id):
         start = time.monotonic()
@@ -264,7 +209,7 @@ class RagService:
                 "answer": "I can help with questions about your documents, but cannot follow requests to override my instructions.",
                 "sources": [],
             }
-        elif question.lower().strip("!. ") in {"hi", "hello", "hey", "help", "what can you do"}:
+        elif question.lower().strip("?!. ") in {"hi", "hello", "hey", "help", "what can you do"}:
             result = {
                 "status": "answered",
                 "answer": "Upload documents, select the sources you want to use, and ask a question. I'll answer with references or explain when the documents don't contain enough information.",
@@ -274,6 +219,9 @@ class RagService:
             try:
                 result = self.chain.invoke(
                     {
+                        "history": messages_from_dict(
+                            self.store.messages(owner, request.session_id)
+                        ),
                         "question": question,
                         "owner": owner,
                         "document_ids": request.document_ids,
@@ -298,6 +246,22 @@ class RagService:
                     "invalid_answer",
                     "The model returned an invalid answer. Try a more specific question.",
                 ) from None
+        self.store.append_messages(
+            owner,
+            request.session_id,
+            messages_to_dict(
+                [
+                    HumanMessage(question),
+                    AIMessage(
+                        content=result["answer"],
+                        additional_kwargs={
+                            "status": result["status"],
+                            "sources": result["sources"],
+                        },
+                    ),
+                ]
+            ),
+        )
         return ChatResponse(
             request_id=request_id,
             session_id=request.session_id,

@@ -1,225 +1,45 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="color-scheme" content="light" />
-    <title>Folio · Document Assistant</title>
-    <link rel="stylesheet" href="/styles.css" />
-    <script src="/script.js" defer></script>
-  </head>
-  <body>
-    <div id="login-screen" class="login-screen">
-      <form id="login-form" class="login-card">
-        <div class="brand-mark" aria-hidden="true">f.</div>
-        <p class="eyebrow">YOUR DOCUMENTS, IN CONVERSATION</p>
-        <h1>Welcome to Folio.</h1>
-        <p class="muted">
-          A private space to explore your documents, ask better questions, and
-          follow the evidence.
-        </p>
-        <label for="username">Username</label>
-        <input
-          id="username"
-          name="username"
-          autocomplete="username"
-          value="local"
-          required
-          maxlength="100"
-        />
-        <label for="access-key">Access key</label>
-        <input
-          id="access-key"
-          name="access-key"
-          type="password"
-          autocomplete="current-password"
-          maxlength="512"
-          placeholder="Your provisioned access key"
-        />
-        <p class="helper">
-          Local development: use “local” with an empty key. Hosted workspaces
-          require your provisioned credentials.
-        </p>
-        <button id="login-button" class="primary" type="submit">
-          Open workspace <span aria-hidden="true">↗</span>
-        </button>
-        <p id="login-error" class="error" role="alert"></p>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Folio · Document assistant</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/script.js" defer></script>
+</head>
+<body>
+  <header><div><strong>Folio</strong><span>Your document assistant</span></div><button id="logout" hidden>Sign out</button></header>
+  <p id="notice" role="status" aria-live="polite"></p>
+  <form id="login-form" class="panel login" hidden>
+    <h1>Ask your documents.</h1>
+    <p>Upload a source, ask a question, and follow the references.</p>
+    <label>Username<input id="username" name="username" value="local" autocomplete="username" required maxlength="100"></label>
+    <label>Access key<input id="access-key" name="password" type="password" autocomplete="current-password" maxlength="512"></label>
+    <p class="muted">On this computer, use “local” with an empty key when no accounts are configured. Hosted accounts need a provisioned key.</p>
+    <button id="login-button" type="submit">Sign in</button>
+  </form>
+  <main id="workspace" hidden>
+    <aside class="panel">
+      <h2>Documents</h2>
+      <label class="upload">Add documents<input id="file-input" type="file" accept=".pdf,.txt,.md,.docx" multiple></label>
+      <p id="upload-help" class="muted">PDF, TXT, Markdown or DOCX. Scanned PDFs need OCR first.</p>
+      <div id="documents"></div>
+      <p id="scope" class="muted">Using all documents.</p>
+      <h2>Conversations</h2>
+      <label class="sr-only" for="sessions">Saved conversation</label>
+      <select id="sessions"><option value="">New conversation</option></select>
+      <div class="actions"><button id="new-chat">New chat</button><button id="delete-chat">Delete chat</button></div>
+    </aside>
+    <section class="panel chat" aria-label="Document conversation">
+      <div class="chat-heading"><h1>What would you like to know?</h1><p class="muted">Answers use your selected documents. Open references to check the source.</p></div>
+      <div id="messages" role="log" aria-live="polite"></div>
+      <form id="chat-form">
+        <label class="sr-only" for="question">Your question</label>
+        <textarea id="question" rows="3" maxlength="2000" placeholder="Ask a question about your documents…" required></textarea>
+        <div class="actions"><span id="activity" role="status" aria-live="polite">Ready</span><button id="send-button" type="submit">Send question</button></div>
       </form>
-      <p class="login-footnote">
-        Grounded answers. Traceable sources. Your workspace.
-      </p>
-    </div>
-
-    <div id="workspace" class="workspace" hidden>
-      <aside class="sidebar">
-        <a class="brand" href="/"
-          ><span class="brand-mark" aria-hidden="true">f.</span
-          ><span
-            >Folio<span class="brand-sub">DOCUMENT ASSISTANT</span></span
-          ></a
-        >
-        <div class="sidebar-heading">
-          <h2>Your library</h2>
-          <span id="document-count" class="count">0</span>
-        </div>
-        <label class="upload-zone" id="upload-zone" for="file-input">
-          <span class="upload-icon" aria-hidden="true">↑</span>
-          <strong>Add a document</strong>
-          <span>Drop a file here or browse</span>
-          <small id="file-hint">PDF, TXT, MD, DOCX · up to 25 MB</small>
-        </label>
-        <input
-          id="file-input"
-          type="file"
-          accept=".pdf,.txt,.md,.docx"
-          class="visually-hidden"
-        />
-        <input
-          id="replace-input"
-          type="file"
-          accept=".pdf,.txt,.md,.docx"
-          class="visually-hidden"
-        />
-        <p id="upload-status" class="helper" role="status"></p>
-        <div class="scope-control">
-          <label
-            ><input id="all-sources" type="checkbox" checked /> All ready
-            documents</label
-          >
-        </div>
-        <div
-          id="document-list"
-          class="document-list"
-          aria-label="Document library"
-        ></div>
-        <div class="sidebar-bottom">
-          <div class="avatar" aria-hidden="true">U</div>
-          <div>
-            <strong id="user-label">Workspace</strong
-            ><span class="muted">Private library</span>
-          </div>
-          <button
-            id="logout-button"
-            class="text-button"
-            title="Sign out"
-            aria-label="Sign out"
-          >
-            ↗
-          </button>
-        </div>
-      </aside>
-
-      <main class="main-panel">
-        <header class="topbar">
-          <div>
-            <p class="eyebrow">WORKSPACE / CONVERSATIONS</p>
-            <h1>Ask your documents.</h1>
-          </div>
-          <div class="topbar-actions">
-            <span id="health" class="health">Checking service</span
-            ><button id="new-chat" class="secondary">＋ New chat</button>
-          </div>
-        </header>
-        <div class="conversation-bar">
-          <label for="conversation-select">Conversation</label
-          ><select
-            id="conversation-select"
-            aria-label="Select conversation"
-          ></select
-          ><button id="delete-chat" class="text-button">Delete chat</button
-          ><span id="scope-label">All ready documents</span>
-        </div>
-        <div id="notice" class="notice" role="status" hidden></div>
-        <section
-          id="messages"
-          class="messages"
-          aria-label="Conversation"
-          aria-live="polite"
-          aria-relevant="additions"
-        >
-          <div id="empty-state" class="empty-state">
-            <div class="hero-symbol" aria-hidden="true">✳</div>
-            <p class="eyebrow">LESS SEARCHING. MORE UNDERSTANDING.</p>
-            <h2>Your next answer is<br />already in your documents.</h2>
-            <p>
-              Add a source to your library, then ask a question.<br />Every
-              supported answer comes with evidence you can inspect.
-            </p>
-            <div class="suggestions">
-              <button
-                data-question="What are the key points in the selected documents?"
-              >
-                Find the key points <span>↗</span></button
-              ><button
-                data-question="What requirements and deadlines are mentioned?"
-              >
-                Find requirements & deadlines <span>↗</span></button
-              ><button
-                data-question="Where do the selected documents disagree?"
-              >
-                Compare your sources <span>↗</span>
-              </button>
-            </div>
-            <div class="steps">
-              <span><b>01</b> Add your sources</span
-              ><span><b>02</b> Ask a question</span
-              ><span><b>03</b> Check the evidence</span>
-            </div>
-          </div>
-        </section>
-        <footer class="composer-area">
-          <form id="chat-form" class="composer">
-            <label for="question" class="visually-hidden">Ask a question</label
-            ><textarea
-              id="question"
-              rows="2"
-              maxlength="2000"
-              placeholder="Ask a question about your documents…"
-            ></textarea>
-            <div class="composer-bottom">
-              <span id="composer-hint"
-                >Answers grounded in your selected sources</span
-              >
-              <div>
-                <button
-                  id="cancel-chat"
-                  class="text-button"
-                  type="button"
-                  hidden
-                >
-                  Stop waiting</button
-                ><button
-                  id="send-button"
-                  class="send-button"
-                  type="submit"
-                  aria-label="Send question"
-                >
-                  ↑
-                </button>
-              </div>
-            </div>
-          </form>
-          <p class="disclaimer">
-            Check the cited passages before relying on an answer. Missing
-            evidence will be stated explicitly.
-          </p>
-        </footer>
-      </main>
-    </div>
-    <dialog id="overview-dialog">
-      <button id="close-overview" class="text-button">Close</button>
-      <h2 id="overview-title">Document overview</h2>
-      <div id="overview-content"></div>
-    </dialog>
-    <dialog id="confirm-dialog">
-      <form method="dialog">
-        <h2 id="confirm-title">Confirm deletion</h2>
-        <p id="confirm-description"></p>
-        <div class="dialog-actions">
-          <button value="cancel" class="secondary">Cancel</button
-          ><button value="confirm" class="danger">Delete</button>
-        </div>
-      </form>
-    </dialog>
-  </body>
+    </section>
+  </main>
+  <footer>Answers can be incomplete. Check cited passages for important details.</footer>
+</body>
 </html>

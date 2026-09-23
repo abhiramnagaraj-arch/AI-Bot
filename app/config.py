@@ -51,9 +51,14 @@ class Settings(BaseSettings):
     @property
     def fingerprint(self):
         # Preserve compatibility with documents indexed by the previous implementation.
-        values = {"schema": 2, "loader": "preserve-v1", "embedding": self.embedding_model,
-                  "revision": self.embedding_revision, "chunk": self.chunk_tokens,
-                  "overlap": self.chunk_overlap}
+        values = {
+            "schema": 2,
+            "loader": "preserve-v1",
+            "embedding": self.embedding_model,
+            "revision": self.embedding_revision,
+            "chunk": self.chunk_tokens,
+            "overlap": self.chunk_overlap,
+        }
         return hashlib.sha256(json.dumps(values, sort_keys=True).encode()).hexdigest()[:24]
 
     @property
@@ -64,12 +69,13 @@ class Settings(BaseSettings):
     def validate_settings(self):
         try:
             users = self.users
-            assert isinstance(users, dict)
-            assert all(
+            valid = isinstance(users, dict) and all(
                 isinstance(k, str) and 1 <= len(k) <= 100 and isinstance(v, str) and len(v) >= 16
                 for k, v in users.items()
             )
-        except (ValueError, AssertionError, TypeError):
+            if not valid:
+                raise ValueError("Invalid users")
+        except (ValueError, TypeError):
             raise ValueError(
                 "RAG_USERS_JSON must map usernames to access keys of at least 16 characters"
             ) from None
@@ -79,7 +85,7 @@ class Settings(BaseSettings):
             raise ValueError("Chunk overlap must be smaller than chunk size")
         if self.fetch_k < self.top_k:
             raise ValueError("Fetch count must be at least top_k")
-        if self.output_tokens + 1024 >= self.context_tokens:
+        if self.output_tokens + 3000 >= self.context_tokens:
             raise ValueError("Context window must leave room for the prompt and evidence")
         if not self.ollama_base_url.startswith(("http://", "https://")):
             raise ValueError("Ollama URL must use HTTP or HTTPS")

@@ -46,7 +46,7 @@ def main():
                     raise RuntimeError("Browser test server did not start")
                 with sync_playwright() as playwright:
                     browser = playwright.chromium.launch(
-                        executable_path="/usr/bin/google-chrome",
+                        executable_path=os.environ.get("CHROME_PATH", "/usr/bin/google-chrome"),
                         headless=True,
                         args=["--no-sandbox"],
                     )
@@ -86,9 +86,9 @@ def main():
                     assert page.evaluate(
                         "document.documentElement.scrollWidth <= window.innerWidth"
                     )
-                    page.locator(".document-actions button").filter(has_text="Delete").click()
-                    page.locator("#confirm-dialog .danger").click()
-                    page.get_by_text("Your library is a blank page.", exact=False).wait_for()
+                    page.on("dialog", lambda dialog: dialog.accept())
+                    page.locator(".document button").filter(has_text="Delete").click()
+                    page.get_by_text("No documents yet.", exact=False).wait_for()
                     assert not errors, errors
                     browser.close()
                     print(

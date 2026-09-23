@@ -3,7 +3,7 @@
 from ollama import Client
 
 from app.config import Settings
-from app.embedder import create_embeddings
+from app.documents import create_embeddings
 
 
 def main():

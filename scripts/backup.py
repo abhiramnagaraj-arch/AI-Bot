@@ -53,9 +53,14 @@ def restore(archive_path: Path, destination: Path):
     import sqlite3
 
     with sqlite3.connect(destination / "metadata.sqlite3") as db:
-        for vid, old in db.execute("SELECT id,path FROM versions").fetchall():
+        table = (
+            "files"
+            if db.execute("SELECT 1 FROM sqlite_master WHERE name='files'").fetchone()
+            else "versions"
+        )
+        for vid, old in db.execute(f"SELECT id,path FROM {table}").fetchall():
             db.execute(
-                "UPDATE versions SET path=? WHERE id=?",
+                f"UPDATE {table} SET path=? WHERE id=?",
                 (str(destination / "uploads" / Path(old).name), vid),
             )
         db.execute("DELETE FROM auth_tokens")

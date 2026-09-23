@@ -67,6 +67,7 @@ class Store:
                 yield db
         finally:
             db.close()
+
     def maintenance(self):
         with self.connect() as db:
             db.execute("DELETE FROM auth_tokens WHERE expires < ?", (time.time(),))
@@ -178,14 +179,20 @@ class Store:
 
     def documents(self, owner):
         with self.connect() as db:
-            return [dict(r) for r in db.execute(
-                "SELECT id,filename,active_version,status,chunks,pages,created "
-                "FROM files WHERE owner=? AND status='ready' ORDER BY created DESC", (owner,))]
+            return [
+                dict(r)
+                for r in db.execute(
+                    "SELECT id,filename,active_version,status,chunks,pages,created "
+                    "FROM files WHERE owner=? AND status='ready' ORDER BY created DESC",
+                    (owner,),
+                )
+            ]
 
     def document(self, owner, doc_id):
         with self.connect() as db:
-            row = db.execute("SELECT * FROM files WHERE owner=? AND id=? AND status='ready'",
-                             (owner, doc_id)).fetchone()
+            row = db.execute(
+                "SELECT * FROM files WHERE owner=? AND id=? AND status='ready'", (owner, doc_id)
+            ).fetchone()
         if not row:
             raise AppError(404, "document_not_found", "Document not found.")
         return dict(row)
@@ -194,8 +201,12 @@ class Store:
         if selected:
             return [self.document(owner, doc_id) for doc_id in selected]
         with self.connect() as db:
-            return [dict(r) for r in db.execute(
-                "SELECT * FROM files WHERE owner=? AND status='ready'", (owner,))]
+            return [
+                dict(r)
+                for r in db.execute(
+                    "SELECT * FROM files WHERE owner=? AND status='ready'", (owner,)
+                )
+            ]
 
     def add_document(self, owner, filename, path, sha, fingerprint):
         size, doc_id = path.stat().st_size, uuid.uuid4().hex
@@ -203,32 +214,52 @@ class Store:
             db.execute("BEGIN IMMEDIATE")
             duplicate = db.execute(
                 "SELECT id FROM files WHERE owner=? AND sha=? AND fingerprint=? AND status='ready'",
-                (owner, sha, fingerprint)).fetchone()
+                (owner, sha, fingerprint),
+            ).fetchone()
             if duplicate:
                 return duplicate[0], False
-            count, used = db.execute("SELECT COUNT(*),COALESCE(SUM(size),0) FROM files WHERE owner=?",
-                                     (owner,)).fetchone()
+            count, used = db.execute(
+                "SELECT COUNT(*),COALESCE(SUM(size),0) FROM files WHERE owner=?", (owner,)
+            ).fetchone()
             if count >= self.settings.max_documents:
                 raise AppError(409, "document_limit", "Delete a document before uploading another.")
             if used + size > self.settings.max_storage_mb * 1024**2:
-                raise AppError(413, "storage_quota", "Your document storage quota has been reached.")
-            db.execute("INSERT INTO files VALUES (?,?,?,?,?,?,?,?,?,0,0,?)",
-                       (doc_id, owner, filename, doc_id, str(path), sha, size, fingerprint,
-                        "pending", time.time()))
+                raise AppError(
+                    413, "storage_quota", "Your document storage quota has been reached."
+                )
+            db.execute(
+                "INSERT INTO files VALUES (?,?,?,?,?,?,?,?,?,0,0,?)",
+                (
+                    doc_id,
+                    owner,
+                    filename,
+                    doc_id,
+                    str(path),
+                    sha,
+                    size,
+                    fingerprint,
+                    "pending",
+                    time.time(),
+                ),
+            )
         return doc_id, True
 
     def publish(self, doc_id, chunks, pages):
         with self.connect() as db:
-            db.execute("UPDATE files SET status='ready',chunks=?,pages=? WHERE id=?",
-                       (chunks, pages, doc_id))
+            db.execute(
+                "UPDATE files SET status='ready',chunks=?,pages=? WHERE id=?",
+                (chunks, pages, doc_id),
+            )
 
     def delete_document(self, owner, doc_id):
         self.document(owner, doc_id)
         with self.connect() as db:
             db.execute("UPDATE files SET status='pending' WHERE id=? AND owner=?", (doc_id, owner))
             # Old answers must not reintroduce deleted source content into prompts.
-            db.execute("DELETE FROM messages WHERE session_id IN (SELECT id FROM sessions WHERE owner=?)",
-                       (owner,))
+            db.execute(
+                "DELETE FROM messages WHERE session_id IN (SELECT id FROM sessions WHERE owner=?)",
+                (owner,),
+            )
 
     def pending(self):
         with self.connect() as db:

@@ -4,7 +4,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from app.schemas import AnswerDraft
+from app.guardrails import AnswerDraft
 from app.storage import Store
 from tests.conftest import login, session, upload
 
@@ -74,7 +74,7 @@ def test_no_evidence_skips_model(harness):
     assert not model.calls
 
 
-def test_owner_isolation_all_routes_and_retrieval(harness):
+def test_owner_isolation_all_routes_and_retrieval(harness, monkeypatch):
     client, svc, model, index = harness
     login(client)
     doc = upload(client, svc)
@@ -86,7 +86,6 @@ def test_owner_isolation_all_routes_and_retrieval(harness):
     for path in [
         f"/documents/{doc['document_id']}",
         f"/documents/{doc['document_id']}/source",
-        f"/jobs/{doc['job_id']}",
         f"/sessions/{sid}/messages",
     ]:
         assert client.get("/api/v1" + path).status_code == 404
@@ -94,44 +93,50 @@ def test_owner_isolation_all_routes_and_retrieval(harness):
     assert ask(client, sid).status_code == 404
     bob_sid = session(client)
     assert ask(client, bob_sid, document_ids=[doc["document_id"]]).status_code == 404
-    index.ignore_filter = True
+    from langchain_core.documents import Document
+
+    monkeypatch.setattr(
+        index,
+        "search",
+        lambda *args: [
+            (
+                Document(
+                    page_content="Private Alice fact",
+                    metadata={
+                        "owner": "alice",
+                        "document_id": doc["document_id"],
+                        "version_id": doc["document_id"],
+                    },
+                ),
+                0.9,
+            )
+        ],
+    )
     assert ask(client, bob_sid).json()["status"] == "insufficient_evidence"
 
 
-def test_failed_replace_keeps_active_document(harness):
+def test_failed_upload_keeps_existing_document(harness):
     client, svc, *_ = harness
     login(client)
     doc = upload(client, svc)
-    response = client.put(
-        f"/api/v1/documents/{doc['document_id']}", files={"file": ("broken.pdf", b"%PDF-not-a-pdf")}
-    )
-    assert response.status_code == 202
-    svc.worker.run_one()
-    current = client.get(f"/api/v1/documents/{doc['document_id']}").json()
-    assert current["active_version"] == doc["job_id"]
-    assert current["job"]["status"] == "failed"
+    response = client.post("/api/v1/documents", files={"file": ("broken.pdf", b"%PDF-not-a-pdf")})
+    assert response.status_code == 422
+    assert client.get("/api/v1/documents").json()[0]["id"] == doc["document_id"]
+    assert len(list((svc.store.root / "uploads").iterdir())) == 1
     assert ask(client, session(client)).status_code == 200
 
 
-def test_replace_and_delete_invalidate_old_sources_and_history(harness):
+def test_delete_removes_sources_vectors_and_history(harness):
     client, svc, *_ = harness
     login(client)
     doc = upload(client, svc)
     sid = session(client)
     old_source = ask(client, sid).json()["sources"][0]["url"]
-    response = client.put(
-        f"/api/v1/documents/{doc['document_id']}",
-        files={"file": ("policy-new.txt", b"Employees receive 25 days of annual leave.")},
-    )
-    assert response.status_code == 202
-    svc.worker.run_one()
+    assert client.delete(f"/api/v1/documents/{doc['document_id']}").status_code == 200
     assert client.get(old_source).status_code == 404
     assert client.get(f"/api/v1/sessions/{sid}/messages").json() == []
-    assert client.delete(f"/api/v1/documents/{doc['document_id']}").status_code == 200
-    assert client.get(f"/api/v1/documents/{doc['document_id']}/source").status_code == 404
     assert ask(client, sid).json()["status"] == "insufficient_evidence"
-    svc.worker.cleanup()
-    assert not svc._ai[0].docs
+    assert not svc.documents.index.get()["ids"]
     assert list((svc.store.root / "uploads").iterdir()) == []
 
 
@@ -139,26 +144,25 @@ def test_duplicate_is_idempotent(harness):
     client, svc, *_ = harness
     login(client)
     first = upload(client, svc)
-    second = upload(client, svc, process=False)
+    second = upload(client, svc)
     assert second["duplicate"]
     assert first["document_id"] == second["document_id"]
     assert len(client.get("/api/v1/documents").json()) == 1
     assert len(list((svc.store.root / "uploads").iterdir())) == 1
 
 
-def test_restart_requeues_incomplete_job(harness):
+def test_restart_cleans_interrupted_upload(harness):
     client, svc, *_ = harness
-    login(client)
-    doc = upload(client, svc, process=False)
-    svc.store.next_job()
-    assert svc.store.job("alice", doc["job_id"])["status"] == "processing"
-    orphan = svc.store.root / "uploads" / "orphan.txt"
+    path = svc.store.root / "uploads" / "interrupted.txt"
+    path.write_text("interrupted")
+    doc, _ = svc.store.add_document("alice", path.name, path, "hash", svc.settings.fingerprint)
+    svc.documents.index.add_texts(["partial vectors"], metadatas=[{"version_id": doc}], ids=[doc])
+    orphan = path.with_name("orphan.txt")
     orphan.write_text("orphan")
-    svc.store.recover()
-    assert not orphan.exists()
-    assert svc.store.job("alice", doc["job_id"])["status"] == "queued"
-    svc.worker.run_one()
-    assert svc.store.job("alice", doc["job_id"])["status"] == "ready"
+    svc.documents.recover()
+    assert not path.exists() and not orphan.exists()
+    assert svc.store.pending() == []
+    assert svc.documents.index.get()["ids"] == []
 
 
 @pytest.mark.parametrize(
@@ -305,24 +309,8 @@ def test_content_is_served_as_text_not_html(harness):
     assert "localhost:8000" not in Path("frontend/script.js").read_text()
 
 
-def test_grounded_overview_cached_and_owner_scoped(harness):
-    client, svc, model, _ = harness
-    login(client)
-    doc = upload(client, svc)
-    path = f"/api/v1/documents/{doc['document_id']}/overview"
-    response = client.post(path)
-    assert response.status_code == 200, response.text
-    assert response.json()["sources"][0]["document_id"] == doc["document_id"]
-    assert response.json()["partial"] is False
-    assert response.json()["cached"] is False
-    assert client.post(path).json()["cached"] is True
-    assert len(model.calls) == 1
-    login(client, "bob")
-    assert client.post(path).status_code == 404
-
-
 def test_provider_schema_does_not_trigger_ollama_grammar_limit():
-    from app.schemas import AnswerDraft, Rewrite
+    from app.guardrails import AnswerDraft, Rewrite
 
     assert "maxLength" not in AnswerDraft.model_json_schema()["properties"]["answer"]
     assert "maxLength" not in Rewrite.model_json_schema()["properties"]["question"]
@@ -382,3 +370,175 @@ def test_unexpected_provider_payload_is_contained(harness, caplog):
     assert response.status_code == 500
     assert "private-provider-payload" not in response.text
     assert "private-provider-payload" not in caplog.text
+
+
+@pytest.mark.parametrize("query", ["hello", "help", "what can you do?"])
+def test_greeting_and_help_are_persisted(harness, query):
+    client, svc, model, _ = harness
+    login(client)
+    sid = session(client)
+    response = ask(client, sid, query)
+    assert response.status_code == 200
+    assert response.json()["status"] == "answered"
+    assert not model.calls
+    assert len(svc.store.messages("alice", sid)) == 2
+
+
+@pytest.mark.parametrize(
+    "error,status",
+    [
+        (httpx.ConnectError("private transport details"), 503),
+        (ValueError("private invalid model response"), 502),
+    ],
+)
+def test_provider_failure_has_no_answer_or_history(harness, error, status):
+    client, svc, model, _ = harness
+    login(client)
+    upload(client, svc)
+    sid = session(client)
+    model.error = error
+    response = ask(client, sid)
+    assert response.status_code == status
+    assert "private" not in response.text
+    assert svc.store.messages("alice", sid) == []
+
+
+def test_selected_documents_control_answer_evidence(harness):
+    client, svc, model, _ = harness
+    login(client)
+    upload(client, svc)
+    selected = upload(
+        client, svc, name="second.txt", content=b"Employees receive 25 days of leave."
+    )
+    result = ask(client, session(client), document_ids=[selected["document_id"]]).json()
+    assert {s["document_id"] for s in result["sources"]} == {selected["document_id"]}
+    assert "20 days" not in model.calls[-1][1].messages[-1].content
+
+
+def test_removed_account_cannot_use_existing_cookie(harness):
+    from pydantic import SecretStr
+
+    client, svc, *_ = harness
+    login(client)
+    svc.settings.users_json = SecretStr('{"bob":"bob-access-key-0123456789"}')
+    assert client.get("/api/v1/documents").status_code == 401
+    assert (
+        client.post("/api/v1/documents", files={"file": ("test.txt", b"test")}).status_code == 401
+    )
+
+
+def test_upload_quota_and_index_failure_leave_no_searchable_content(harness, monkeypatch):
+    client, svc, _, documents = harness
+    login(client)
+    svc.settings.max_documents = 1
+    upload(client, svc)
+    assert (
+        client.post("/api/v1/documents", files={"file": ("second.txt", b"other")}).status_code
+        == 409
+    )
+    svc.settings.max_documents = 100
+    original_add = documents.index.add_documents
+
+    def partial_failure(*args, **kwargs):
+        original_add(*args, **kwargs)
+        raise RuntimeError("private embedding payload")
+
+    monkeypatch.setattr(documents.index, "add_documents", partial_failure)
+    response = client.post("/api/v1/documents", files={"file": ("fail.txt", b"partial content")})
+    assert response.status_code == 500
+    assert "private" not in response.text
+    assert len(client.get("/api/v1/documents").json()) == 1
+    assert len(documents.index.get()["ids"]) == 1
+    assert svc.store.pending() == []
+
+
+def test_busy_request_does_not_race_document_deletion(harness, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+
+    client, svc, *_ = harness
+    login(client)
+    doc = upload(client, svc)
+    sid = session(client)
+    started, release = Event(), Event()
+    original_chat = svc.rag.chat
+
+    def delayed(*args):
+        started.set()
+        assert release.wait(10)
+        return original_chat(*args)
+
+    monkeypatch.setattr(svc.rag, "chat", delayed)
+    with ThreadPoolExecutor(1) as pool:
+        pending = pool.submit(ask, client, sid)
+        try:
+            assert started.wait(10)
+            assert client.delete(f"/api/v1/documents/{doc['document_id']}").status_code == 429
+        finally:
+            release.set()
+        assert pending.result().status_code == 200
+    assert client.delete(f"/api/v1/documents/{doc['document_id']}").status_code == 200
+    assert svc.store.messages("alice", sid) == []
+
+
+def test_request_body_limit_and_large_upload(harness):
+    client, svc, *_ = harness
+    login(client)
+    response = client.post("/api/v1/chat", json={"query": "x" * 40000})
+    assert response.status_code == 413
+    response = client.post(
+        "/api/v1/chat",
+        content=iter([b'{"query":"', b"x" * 40000, b'"}']),
+        headers={"Content-Type": "application/json"},
+    )
+    assert response.status_code == 413
+    svc.settings.max_upload_mb = 1
+    response = client.post("/api/v1/documents", files={"file": ("large.txt", b"x" * (1024**2 + 1))})
+    assert response.status_code == 413
+    assert list((svc.store.root / "uploads").iterdir()) == []
+
+
+def test_pdf_answer_contains_real_page_reference(harness, tmp_path):
+    from tests.test_documents import make_pdf
+
+    client, svc, *_ = harness
+    path = tmp_path / "policy.pdf"
+    make_pdf(path, "Employees receive 20 days of annual leave.")
+    login(client)
+    upload(client, svc, name=path.name, content=path.read_bytes())
+    source = ask(client, session(client)).json()["sources"][0]
+    assert source["page"] == 1
+    assert source["filename"] == "policy.pdf"
+    assert client.get(source["url"]).content == path.read_bytes()
+
+
+def test_chunk_limit_cleans_partial_upload(harness):
+    client, svc, *_ = harness
+    login(client)
+    svc.settings.max_chunks = 1
+    response = client.post("/api/v1/documents", files={"file": ("long.txt", b"word " * 200)})
+    assert response.status_code == 422
+    assert svc.store.documents("alice") == []
+    assert svc.documents.index.get()["ids"] == []
+    assert list((svc.store.root / "uploads").iterdir()) == []
+
+
+def test_clarification_is_valid_but_has_no_factual_sources(harness):
+    client, svc, model, _ = harness
+    login(client)
+    upload(client, svc)
+    model.answer = AnswerDraft(
+        status="clarification_needed", answer="Which type of leave do you mean?"
+    )
+    result = ask(client, session(client), "What is the limit?").json()
+    assert result["status"] == "clarification_needed"
+    assert result["sources"] == []
+
+
+def test_deleted_session_cannot_receive_an_answer(harness):
+    client, svc, model, _ = harness
+    login(client)
+    sid = session(client)
+    assert client.delete(f"/api/v1/sessions/{sid}").status_code == 200
+    assert ask(client, sid).status_code == 404
+    assert not model.calls

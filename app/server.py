@@ -1,9 +1,13 @@
-import hashlib
+"""FastAPI boundary; one application process serializes index mutations and answers."""
+
+import fcntl
+import hmac
 import logging
 import time
 import uuid
-from contextlib import asynccontextmanager
-from pathlib import Path
+from collections import OrderedDict
+from contextlib import asynccontextmanager, contextmanager
+from threading import Lock
 from urllib.parse import urlsplit
 
 import httpx
@@ -11,14 +15,72 @@ from fastapi import Depends, FastAPI, File, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from starlette.concurrency import run_in_threadpool
+from starlette.exceptions import HTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from .auth import COOKIE, RateLimiter, authenticate, principal
 from .config import FRONTEND_DIR, Settings
-from .logger import log_event
-from .schemas import AppError, ChatRequest, ChatResponse, LoginRequest, SessionRequest
-from .services import Services
+from .documents import Documents
+from .guardrails import AppError, ChatRequest, ChatResponse, LoginRequest, SessionRequest
+from .rag import RagService
+from .storage import Store
+
+LOG = logging.getLogger("rag")
+
+COOKIE = "rag_session"
+
+
+class RateLimiter:
+    def __init__(self, capacity=10000):
+        self.capacity, self.entries, self.lock = capacity, OrderedDict(), Lock()
+
+    def check(self, key, limit):
+        now = time.monotonic()
+        with self.lock:
+            while self.entries and next(iter(self.entries.values()))[0] < now - 60:
+                self.entries.popitem(last=False)
+            start, count = self.entries.get(key, (now, 0))
+            if now - start >= 60:
+                start, count = now, 0
+            if count >= limit:
+                raise AppError(
+                    429, "rate_limit", "Too many requests. Please wait a minute and retry."
+                )
+            if key not in self.entries and len(self.entries) >= self.capacity:
+                raise AppError(429, "rate_limit", "The server is busy. Please retry shortly.")
+            self.entries[key] = (start, count + 1)
+
+
+def principal(request: Request):
+    if hasattr(request.state, "owner"):
+        return request.state.owner
+    services = request.app.state
+    token = request.cookies.get(COOKIE, "")
+    owner = services.store.login_owner(token) if token else None
+    # Revoked users lose access immediately, even with a still-valid session cookie.
+    configured = services.settings.users
+    local_allowed = (
+        not configured and services.settings.environment == "development" and owner == "local"
+    )
+    if not owner or (owner not in configured and not local_allowed):
+        raise AppError(401, "unauthenticated", "Sign in to continue.")
+    request.app.state.limiter.check("user:" + owner, services.settings.requests_per_minute)
+    request.state.owner = owner
+    return owner
+
+
+def authenticate(request, username, access_key):
+    settings = request.app.state.settings
+    remote = request.client.host if request.client else "unknown"
+    request.app.state.limiter.check("login:" + remote, 10)
+    configured = settings.users
+    if not configured and settings.environment == "development":
+        if remote in {"127.0.0.1", "::1"} and username == "local":
+            return "local"
+    expected = configured.get(username, "invalid-key-placeholder")
+    valid = hmac.compare_digest(expected.encode(), access_key.encode())
+    if username in configured and valid:
+        return username
+    raise AppError(401, "invalid_credentials", "Invalid username or access key.")
 
 
 class BodyLimitMiddleware:
@@ -40,125 +102,74 @@ class BodyLimitMiddleware:
             message = await receive()
             size += len(message.get("body", b""))
             if size > limit:
-                raise AppError(
-                    413,
-                    "body_too_large",
-                    "The upload or request exceeds the configured size limit.",
-                )
+                # FastAPI preserves HTTPException during body parsing; arbitrary
+                # exceptions would incorrectly become a generic HTTP 400.
+                raise HTTPException(413, "The upload or request exceeds the configured size limit.")
             return message
 
         await self.app(scope, bounded_receive, send)
 
 
-def create_app(settings=None, services=None, start_worker=True):
+def create_app(settings=None, store=None, documents=None, rag=None):
     settings = settings or Settings()
+    operation_lock = Lock()
+
+    def initialize(state):
+        state.store.maintenance()
+        if state.documents is None:
+            state.documents = Documents(settings, state.store)
+        state.documents.recover()
+        if state.rag is None:
+            state.rag = RagService(settings, state.store, state.documents)
 
     @asynccontextmanager
     async def lifespan(app):
-        app.state.services = services or Services(settings)
-        if start_worker:
-            app.state.services.start()
-        try:
+        settings.data_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+        with (settings.data_dir / "application.lock").open("a") as lock:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                raise RuntimeError("Run one application worker per data directory.") from None
+            app.state.store = store or Store(settings)
+            app.state.documents, app.state.rag = documents, rag
+            try:
+                initialize(app.state)
+            except Exception:
+                LOG.warning("AI initialization unavailable; retry on the next request")
             yield
-        finally:
-            if start_worker:
-                await run_in_threadpool(app.state.services.close)
 
     app = FastAPI(
         title="Document Assistant · LangChain",
-        version="2.0.0",
+        version="3.0.0",
         lifespan=lifespan,
         docs_url="/docs" if settings.environment == "development" else None,
         redoc_url=None,
     )
+    app.state.settings = settings
     app.state.limiter = RateLimiter()
     app.add_middleware(BodyLimitMiddleware, upload_bytes=settings.max_upload_mb * 1024**2)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
 
-    @app.middleware("http")
-    async def request_context(request, call_next):
-        request.state.request_id = uuid.uuid4().hex
-        start = time.monotonic()
-        upload_slot = False
-        if request.url.path.startswith("/api/v1/documents") and request.method in {"POST", "PUT"}:
-            svc = request.app.state.services
-            token = request.cookies.get(COOKIE, "")
-            if not token or not svc.store.login_owner(token):
-                return JSONResponse(
-                    {
-                        "error": {
-                            "code": "unauthenticated",
-                            "message": "Sign in to upload documents.",
-                        }
-                    },
-                    status_code=401,
-                )
-            upload_slot = svc.http_uploads.acquire(blocking=False)
-            if not upload_slot:
-                return JSONResponse(
-                    {
-                        "error": {
-                            "code": "upload_busy",
-                            "message": "Upload capacity reached. Please retry.",
-                        }
-                    },
-                    status_code=429,
-                )
-        if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
-            origin = request.headers.get("origin")
-            valid_origin = not origin or urlsplit(origin).netloc == request.headers.get("host")
-            if request.headers.get("x-rag-request") != "1" or not valid_origin:
-                if upload_slot:
-                    request.app.state.services.http_uploads.release()
-                return JSONResponse(
-                    {
-                        "error": {
-                            "code": "invalid_origin",
-                            "message": "Use the same-origin application to make this request.",
-                            "request_id": request.state.request_id,
-                        }
-                    },
-                    status_code=403,
-                )
+    @contextmanager
+    def operation(request, needs_ai=True):
+        if not operation_lock.acquire(blocking=False):
+            raise AppError(
+                429, "busy", "The assistant is processing another request. Please retry shortly."
+            )
         try:
-            response = await call_next(request)
-        except AppError as exc:
-            response = await app_error(request, exc)
-        except Exception as exc:
-            # Contain unhandled exceptions here so Uvicorn cannot print provider
-            # exception payloads (which can include private prompt/source text).
-            log_event(
-                "request_failed", request_id=request.state.request_id, code=type(exc).__name__
-            )
-            response = await app_error(
-                request,
-                AppError(
-                    500,
-                    "internal_error",
-                    "The request could not be completed. Use the request ID when contacting support.",
-                ),
-            )
+            state = request.app.state
+            if needs_ai:
+                try:
+                    initialize(state)
+                except Exception:
+                    raise AppError(
+                        503,
+                        "index_unavailable",
+                        "The embedding model or index is unavailable. Check server setup.",
+                    ) from None
+            yield state
         finally:
-            if upload_slot:
-                request.app.state.services.http_uploads.release()
-        response.headers["X-Request-ID"] = request.state.request_id
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["Referrer-Policy"] = "no-referrer"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["Content-Security-Policy"] = (
-            "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
-        )
-        if request.url.path.startswith("/api/"):
-            response.headers["Cache-Control"] = "no-store"
-        if settings.environment == "production":
-            response.headers["Strict-Transport-Security"] = "max-age=31536000"
-        log_event(
-            "http_request",
-            request_id=request.state.request_id,
-            status=response.status_code,
-            duration_ms=int((time.monotonic() - start) * 1000),
-        )
-        return response
+            operation_lock.release()
 
     @app.exception_handler(AppError)
     async def app_error(request, exc):
@@ -174,49 +185,87 @@ def create_app(settings=None, services=None, start_worker=True):
             headers={"Retry-After": "60"} if exc.status == 429 else None,
         )
 
+    @app.exception_handler(HTTPException)
+    async def http_error(request, exc):
+        return await app_error(request, AppError(exc.status_code, "http_error", str(exc.detail)))
+
     @app.exception_handler(RequestValidationError)
     async def validation_error(request, exc):
-        # Pydantic errors include submitted inputs; never echo them (especially credentials).
         return await app_error(
             request,
             AppError(422, "invalid_request", "Check the request fields, file and question length."),
         )
 
-    @app.exception_handler(Exception)
-    async def unexpected_error(request, exc):
-        log_event(
-            "request_failed",
-            request_id=getattr(request.state, "request_id", ""),
-            code=type(exc).__name__,
+    @app.middleware("http")
+    async def request_context(request, call_next):
+        request.state.request_id = uuid.uuid4().hex
+        start = time.monotonic()
+        try:
+            if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+                origin = request.headers.get("origin")
+                if request.headers.get("x-rag-request") != "1" or (
+                    origin and urlsplit(origin).netloc != request.headers.get("host")
+                ):
+                    raise AppError(
+                        403,
+                        "invalid_origin",
+                        "Use the same-origin application to make this request.",
+                    )
+            # Authenticate uploads before multipart parsing allocates temporary files.
+            if request.url.path == "/api/v1/documents" and request.method == "POST":
+                principal(request)
+            response = await call_next(request)
+        except AppError as exc:
+            response = await app_error(request, exc)
+        except Exception as exc:
+            LOG.error(
+                "request_failed request_id=%s code=%s", request.state.request_id, type(exc).__name__
+            )
+            response = await app_error(
+                request,
+                AppError(
+                    500,
+                    "internal_error",
+                    "The request could not be completed. Please retry or check server setup.",
+                ),
+            )
+        response.headers.update(
+            {
+                "X-Request-ID": request.state.request_id,
+                "X-Content-Type-Options": "nosniff",
+                "Referrer-Policy": "no-referrer",
+                "Content-Security-Policy": "default-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+            }
         )
-        return await app_error(
-            request,
-            AppError(
-                500,
-                "internal_error",
-                "The request could not be completed. Use the request ID when contacting support.",
-            ),
+        if request.url.path.startswith("/api/"):
+            response.headers["Cache-Control"] = "no-store"
+        if settings.environment == "production":
+            response.headers["Strict-Transport-Security"] = "max-age=31536000"
+        LOG.info(
+            "http_request request_id=%s status=%s duration_ms=%s",
+            request.state.request_id,
+            response.status_code,
+            int((time.monotonic() - start) * 1000),
         )
+        return response
 
     @app.get("/health/live")
     def live():
         return {"status": "ok"}
 
     @app.get("/health/ready")
-    async def ready(request: Request):
-        svc = request.app.state.services
+    def ready(request: Request):
         try:
-            with svc.store.connect() as db:
+            if request.app.state.rag is None:
+                raise RuntimeError("index_not_ready")
+            with request.app.state.store.connect() as db:
                 db.execute("SELECT 1")
-            if svc._ai is None:
-                raise RuntimeError("embedding_not_ready")
-            await run_in_threadpool(svc._ai[0].ready)
-            async with httpx.AsyncClient(timeout=3) as client:
-                response = await client.get(settings.ollama_base_url.rstrip("/") + "/api/tags")
-                response.raise_for_status()
-                models = {m["name"] for m in response.json().get("models", [])}
-                if settings.model not in models and settings.model + ":latest" not in models:
-                    raise RuntimeError("model_missing")
+            request.app.state.documents.index.get(limit=1)
+            response = httpx.get(settings.ollama_base_url.rstrip("/") + "/api/tags", timeout=3)
+            response.raise_for_status()
+            models = {m["name"] for m in response.json().get("models", [])}
+            if not {settings.model, settings.model + ":latest"} & models:
+                raise RuntimeError("model_missing")
             return {"status": "ready"}
         except Exception:
             return JSONResponse({"status": "not_ready"}, status_code=503)
@@ -224,7 +273,7 @@ def create_app(settings=None, services=None, start_worker=True):
     @app.post("/api/v1/auth/login")
     def login(payload: LoginRequest, request: Request):
         owner = authenticate(request, payload.username, payload.access_key)
-        token = request.app.state.services.store.create_login(owner)
+        token = request.app.state.store.create_login(owner)
         response = JSONResponse({"username": owner})
         response.set_cookie(
             COOKIE,
@@ -247,190 +296,74 @@ def create_app(settings=None, services=None, start_worker=True):
 
     @app.post("/api/v1/auth/logout")
     def logout(request: Request, owner=Depends(principal)):
-        request.app.state.services.store.logout(request.cookies.get(COOKIE, ""))
+        request.app.state.store.logout(request.cookies.get(COOKIE, ""))
         response = JSONResponse({"status": "signed_out"})
         response.delete_cookie(COOKIE, path="/")
         return response
 
     @app.post("/api/v1/sessions", status_code=201)
     def new_session(payload: SessionRequest, request: Request, owner=Depends(principal)):
-        return request.app.state.services.store.new_session(owner, payload.title)
+        return request.app.state.store.new_session(owner, payload.title)
 
     @app.get("/api/v1/sessions")
     def sessions(request: Request, owner=Depends(principal)):
-        return request.app.state.services.store.sessions(owner)
+        return request.app.state.store.sessions(owner)
 
     @app.get("/api/v1/sessions/{sid}/messages")
     def messages(sid: str, request: Request, owner=Depends(principal)):
-        values = request.app.state.services.store.messages(owner, sid)
         return [
             {
                 "role": "user" if m["type"] == "human" else "assistant",
                 "content": m["data"]["content"],
-                "sources": m["data"].get("additional_kwargs", {}).get("sources", []),
-                "status": m["data"].get("additional_kwargs", {}).get("status"),
+                **{
+                    k: v
+                    for k, v in m["data"].get("additional_kwargs", {}).items()
+                    if k in {"sources", "status"}
+                },
             }
-            for m in values
+            for m in request.app.state.store.messages(owner, sid)
         ]
 
     @app.delete("/api/v1/sessions/{sid}")
     def delete_session(sid: str, request: Request, owner=Depends(principal)):
-        svc = request.app.state.services
-        with svc.owner_lock(owner):
-            svc.store.delete_session(owner, sid)
+        with operation(request, needs_ai=False) as state:
+            state.store.delete_session(owner, sid)
         return {"status": "deleted"}
 
     @app.get("/api/v1/documents")
-    def documents(request: Request, owner=Depends(principal)):
-        return request.app.state.services.store.documents(owner)
+    def documents_list(request: Request, owner=Depends(principal)):
+        return request.app.state.store.documents(owner)
 
-    @app.get("/api/v1/documents/{doc_id}")
-    def document(doc_id: str, request: Request, owner=Depends(principal)):
-        return request.app.state.services.store.document(owner, doc_id)
-
-    async def accept_upload(request, owner, file, doc_id=None):
-        svc = request.app.state.services
-        if not svc.upload_slots.acquire(blocking=False):
-            raise AppError(
-                429, "upload_busy", "Another upload is in progress. Please retry shortly."
-            )
-        path = None
-        keep = False
-        try:
-            filename = Path((file.filename or "").replace("\\", "/")).name
-            if not filename or len(filename) > 180 or any(ord(c) < 32 for c in filename):
-                raise AppError(422, "invalid_filename", "Choose a file with a valid filename.")
-            suffix = Path(filename).suffix.lower()
-            if suffix not in {".pdf", ".txt", ".md", ".docx"}:
-                raise AppError(
-                    415, "unsupported_type", "Supported formats: PDF, TXT, Markdown and DOCX."
-                )
-            path = svc.store.root / "uploads" / (uuid.uuid4().hex + suffix)
-            size, digest, head = 0, hashlib.sha256(), b""
-            with path.open("xb") as target:
-                while block := await file.read(1024 * 1024):
-                    size += len(block)
-                    if size > settings.max_upload_mb * 1024**2:
-                        raise AppError(
-                            413, "upload_too_large", "The file exceeds the upload size limit."
-                        )
-                    if not head:
-                        head = block[:1024]
-                    digest.update(block)
-                    target.write(block)
-            if not size:
-                raise AppError(422, "empty_file", "The uploaded file is empty.")
-            if suffix == ".pdf" and b"%PDF-" not in head:
-                raise AppError(415, "invalid_file", "The file does not have a PDF signature.")
-            if suffix == ".docx" and not head.startswith(b"PK"):
-                raise AppError(415, "invalid_file", "The file does not have a DOCX signature.")
-            if suffix in {".txt", ".md"} and b"\x00" in head:
-                raise AppError(
-                    415, "invalid_file", "Text documents must use UTF-8 without binary content."
-                )
-
-            def enqueue():
-                with svc.owner_lock(owner):
-                    return svc.store.enqueue(
-                        owner, filename, path, digest.hexdigest(), size, svc.fingerprint, doc_id
-                    )
-
-            document_id, job_id, keep = await run_in_threadpool(enqueue)
-            svc.worker.wake.set()
-            return {"document_id": document_id, "job_id": job_id, "duplicate": not keep}
-        finally:
-            await file.close()
-            if path and not keep:
-                path.unlink(missing_ok=True)
-            svc.upload_slots.release()
-
-    @app.post("/api/v1/documents", status_code=202)
-    async def upload(request: Request, file: UploadFile = File(...), owner=Depends(principal)):
-        return await accept_upload(request, owner, file)
-
-    @app.put("/api/v1/documents/{doc_id}", status_code=202)
-    async def replace(
-        doc_id: str, request: Request, file: UploadFile = File(...), owner=Depends(principal)
-    ):
-        return await accept_upload(request, owner, file, doc_id)
+    @app.post("/api/v1/documents", status_code=201)
+    def upload(request: Request, file: UploadFile = File(...), owner=Depends(principal)):
+        with operation(request) as state:
+            return state.documents.ingest(owner, file.filename, file.file)
 
     @app.delete("/api/v1/documents/{doc_id}")
     def delete_document(doc_id: str, request: Request, owner=Depends(principal)):
-        svc = request.app.state.services
-        with svc.owner_lock(owner):
-            svc.store.delete_document(owner, doc_id)
-        svc.worker.wake.set()
+        with operation(request) as state:
+            state.store.delete_document(owner, doc_id)
+            if not state.documents.cleanup():
+                raise AppError(
+                    503,
+                    "cleanup_pending",
+                    "Document access was removed. Physical cleanup will retry on the next operation or restart.",
+                )
         return {"status": "deleted", "history_cleared": True}
 
     @app.get("/api/v1/documents/{doc_id}/source")
     def source(
         doc_id: str, request: Request, version_id: str | None = None, owner=Depends(principal)
     ):
-        path, filename = request.app.state.services.store.source(owner, doc_id, version_id)
+        path, filename = request.app.state.store.source(owner, doc_id, version_id)
         if not path.is_file():
             raise AppError(404, "source_missing", "The stored source file is unavailable.")
-        # Attachments never execute in the app's origin.
         return FileResponse(path, filename=filename, content_disposition_type="attachment")
 
-    @app.get("/api/v1/jobs/{job_id}")
-    def job(job_id: str, request: Request, owner=Depends(principal)):
-        return request.app.state.services.store.job(owner, job_id)
-
-    @app.post("/api/v1/documents/{doc_id}/overview")
-    async def overview(doc_id: str, request: Request, owner=Depends(principal)):
-        svc = request.app.state.services
-        if not svc.chat_slots.acquire(blocking=False):
-            raise AppError(429, "chat_busy", "The assistant is at capacity. Please retry shortly.")
-
-        def invoke():
-            with svc.owner_lock(owner):
-                svc.store.document(owner, doc_id)
-                try:
-                    _, _, rag = svc.ai()
-                except Exception:
-                    raise AppError(
-                        503, "index_unavailable", "The embedding model or index is unavailable."
-                    ) from None
-                return rag.overview(owner, doc_id, request.state.request_id)
-
-        try:
-            return await run_in_threadpool(invoke)
-        finally:
-            svc.chat_slots.release()
-
     @app.post("/api/v1/chat", response_model=ChatResponse)
-    async def chat(payload: ChatRequest, request: Request, owner=Depends(principal)):
-        svc = request.app.state.services
-        if not svc.chat_slots.acquire(blocking=False):
-            raise AppError(429, "chat_busy", "The assistant is at capacity. Please retry shortly.")
-
-        def invoke():
-            lock = svc.owner_lock(owner)
-            if not lock.acquire(blocking=False):
-                raise AppError(
-                    409,
-                    "conversation_busy",
-                    "A request is already running for your account. Please wait for it to finish.",
-                )
-            try:
-                svc.store.session(owner, payload.session_id)
-                svc.store.active(owner, payload.document_ids)
-                try:
-                    _, _, rag = svc.ai()
-                except Exception:
-                    raise AppError(
-                        503,
-                        "index_unavailable",
-                        "The embedding model or index is unavailable. Check server setup.",
-                    ) from None
-                return rag.chat(owner, payload, request.state.request_id)
-            finally:
-                lock.release()
-
-        try:
-            return await run_in_threadpool(invoke)
-        finally:
-            svc.chat_slots.release()
+    def chat(payload: ChatRequest, request: Request, owner=Depends(principal)):
+        with operation(request) as state:
+            return state.rag.chat(owner, payload, request.state.request_id)
 
     app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
     return app

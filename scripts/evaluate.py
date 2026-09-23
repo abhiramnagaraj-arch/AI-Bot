@@ -1,7 +1,6 @@
 """Evaluate synthetic RAG cases. Keyword matches are diagnostics, not semantic grades."""
 
 import argparse
-import hashlib
 import json
 import statistics
 import tempfile
@@ -9,8 +8,10 @@ import time
 from pathlib import Path
 
 from app.config import Settings
-from app.schemas import ChatRequest
-from app.services import Services
+from app.documents import Documents
+from app.guardrails import ChatRequest
+from app.rag import RagService
+from app.storage import Store
 
 
 def main():
@@ -22,23 +23,15 @@ def main():
     cases = json.loads(Path("evals/cases.json").read_text())[: args.limit]
     with tempfile.TemporaryDirectory(prefix="folio-evaluation-") as directory:
         settings = Settings(data_dir=Path(directory))
-        services = Services(settings)
+        store = Store(settings)
+        index = Documents(settings, store)
         for source in sorted(Path("evals/documents").glob("*.md")):
-            target = services.store.root / "uploads" / source.name
-            target.write_bytes(source.read_bytes())
-            services.store.enqueue(
-                "evaluation",
-                source.name,
-                target,
-                hashlib.sha256(target.read_bytes()).hexdigest(),
-                target.stat().st_size,
-                services.fingerprint,
-            )
-            services.worker.run_one()
-        active = services.store.active("evaluation")
+            with source.open("rb") as stream:
+                index.ingest("evaluation", source.name, stream)
+        active = store.active("evaluation")
         if len(active) != 3:
             raise RuntimeError("Evaluation documents failed to index")
-        index, _, rag = services.ai()
+        rag = RagService(settings, store, index)
         results = []
         for case in cases:
             start = time.monotonic()
@@ -54,7 +47,7 @@ def main():
                 "retrieval_hit": case["source"] in names if case["source"] else None,
             }
             if args.mode == "generation":
-                sid = services.store.new_session("evaluation", case["id"])["id"]
+                sid = store.new_session("evaluation", case["id"])["id"]
                 try:
                     answer = rag.chat(
                         "evaluation",

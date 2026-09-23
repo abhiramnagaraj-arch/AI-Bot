@@ -68,7 +68,6 @@ def load_documents(path, max_pages=1000, max_chars=2000000):
     return documents
 
 
-
 def parse_document(path, settings):
     with tempfile.TemporaryDirectory(prefix="rag-parser-") as directory:
         output = Path(directory) / "parsed.json"
@@ -105,7 +104,6 @@ def parse_document(path, settings):
         return [Document(**d) for d in result["documents"]]
 
 
-
 def create_embeddings(settings):
     from langchain_huggingface import HuggingFaceEmbeddings
 
@@ -136,18 +134,26 @@ class Documents:
         embeddings = embeddings or create_embeddings(settings)
         if splitter is None:
             model = embeddings._client
-            limit = min(settings.chunk_tokens,
-                        model.max_seq_length - model.tokenizer.num_special_tokens_to_add())
+            limit = min(
+                settings.chunk_tokens,
+                model.max_seq_length - model.tokenizer.num_special_tokens_to_add(),
+            )
             if limit <= settings.chunk_overlap:
                 raise ValueError("Embedding token limit is smaller than configured overlap")
             splitter = RecursiveCharacterTextSplitter.from_huggingface_tokenizer(
-                model.tokenizer, chunk_size=limit, chunk_overlap=settings.chunk_overlap,
-                add_start_index=True)
+                model.tokenizer,
+                chunk_size=limit,
+                chunk_overlap=settings.chunk_overlap,
+                add_start_index=True,
+            )
         self.splitter = splitter
         self.index = Chroma(
-            collection_name=f"rag_v2_{self.fingerprint}", embedding_function=embeddings,
+            collection_name=f"rag_v2_{self.fingerprint}",
+            embedding_function=embeddings,
             persist_directory=str(settings.data_dir / "chroma"),
-            collection_metadata={"hnsw:space": "cosine"}, relevance_score_fn=cosine_relevance)
+            collection_metadata={"hnsw:space": "cosine"},
+            relevance_score_fn=cosine_relevance,
+        )
 
     def ingest(self, owner, filename, stream):
         filename = Path((filename or "").replace("\\", "/")).name
@@ -155,7 +161,9 @@ class Documents:
         if not filename or len(filename) > 180 or any(ord(c) < 32 for c in filename):
             raise AppError(422, "invalid_filename", "Choose a file with a valid filename.")
         if suffix not in {".pdf", ".txt", ".md", ".docx"}:
-            raise AppError(415, "unsupported_type", "Supported formats: PDF, TXT, Markdown and DOCX.")
+            raise AppError(
+                415, "unsupported_type", "Supported formats: PDF, TXT, Markdown and DOCX."
+            )
         path = self.catalog.root / "uploads" / (uuid.uuid4().hex + suffix)
         published = False
         try:
@@ -164,33 +172,53 @@ class Documents:
                 while block := stream.read(1024 * 1024):
                     size += len(block)
                     if size > self.settings.max_upload_mb * 1024**2:
-                        raise AppError(413, "upload_too_large", "The file exceeds the upload size limit.")
+                        raise AppError(
+                            413, "upload_too_large", "The file exceeds the upload size limit."
+                        )
                     head = head or block[:1024]
                     if suffix in {".txt", ".md"} and b"\x00" in block:
-                        raise AppError(415, "invalid_file", "Text files must be UTF-8 without binary content.")
+                        raise AppError(
+                            415, "invalid_file", "Text files must be UTF-8 without binary content."
+                        )
                     digest.update(block)
                     target.write(block)
             if not size:
                 raise AppError(422, "empty_file", "The uploaded file is empty.")
-            if (suffix == ".pdf" and b"%PDF-" not in head) or (suffix == ".docx" and not head.startswith(b"PK")):
+            if (suffix == ".pdf" and b"%PDF-" not in head) or (
+                suffix == ".docx" and not head.startswith(b"PK")
+            ):
                 raise AppError(415, "invalid_file", "The file signature does not match its format.")
-            doc_id, created = self.catalog.add_document(owner, filename, path, digest.hexdigest(), self.fingerprint)
+            doc_id, created = self.catalog.add_document(
+                owner, filename, path, digest.hexdigest(), self.fingerprint
+            )
             if created:
-                pages = parse_document(path, self.settings)
+                try:
+                    pages = parse_document(path, self.settings)
+                except ValueError as exc:
+                    raise AppError(422, "invalid_document", str(exc)) from None
                 chunks = self.splitter.split_documents(pages)
                 if not chunks or len(chunks) > self.settings.max_chunks:
-                    raise ValueError("The document produced too many chunks, or no indexable text.")
+                    raise AppError(
+                        422,
+                        "invalid_document",
+                        "The document produced too many chunks, or no indexable text.",
+                    )
                 for i, chunk in enumerate(chunks):
-                    chunk.metadata.update(owner=owner, document_id=doc_id, version_id=doc_id,
-                                          filename=filename, chunk_index=i)
+                    chunk.metadata.update(
+                        owner=owner,
+                        document_id=doc_id,
+                        version_id=doc_id,
+                        filename=filename,
+                        chunk_index=i,
+                    )
                 for start in range(0, len(chunks), 64):
-                    batch = chunks[start:start + 64]
-                    self.index.add_documents(batch, ids=[f"{doc_id}:{start+i}" for i in range(len(batch))])
+                    batch = chunks[start : start + 64]
+                    self.index.add_documents(
+                        batch, ids=[f"{doc_id}:{start + i}" for i in range(len(batch))]
+                    )
                 self.catalog.publish(doc_id, len(chunks), len(pages))
                 published = True
             return {"document_id": doc_id, "duplicate": not created, "status": "ready"}
-        except ValueError as exc:
-            raise AppError(422, "invalid_document", str(exc)) from None
         finally:
             if not published:
                 path.unlink(missing_ok=True)
@@ -200,8 +228,11 @@ class Documents:
         if not versions:
             return []
         return self.index.similarity_search_with_relevance_scores(
-            query, k=self.settings.fetch_k, score_threshold=self.settings.relevance_threshold,
-            filter={"$and": [{"owner": owner}, {"version_id": {"$in": versions}}]})
+            query,
+            k=self.settings.fetch_k,
+            score_threshold=self.settings.relevance_threshold,
+            filter={"$and": [{"owner": owner}, {"version_id": {"$in": versions}}]},
+        )
 
     def cleanup(self):
         from chromadb.errors import NotFoundError
@@ -210,16 +241,24 @@ class Documents:
         for doc in self.catalog.pending():
             try:
                 try:
-                    target = self.index if doc["fingerprint"] == self.fingerprint else Chroma(
-                        collection_name=f"rag_v2_{doc['fingerprint']}", client=self.index._client,
-                        create_collection_if_not_exists=False)
+                    target = (
+                        self.index
+                        if doc["fingerprint"] == self.fingerprint
+                        else Chroma(
+                            collection_name=f"rag_v2_{doc['fingerprint']}",
+                            client=self.index._client,
+                            create_collection_if_not_exists=False,
+                        )
+                    )
                     target.delete(where={"version_id": doc["active_version"]})
                 except NotFoundError:
                     pass
                 Path(doc["path"]).unlink(missing_ok=True)
                 self.catalog.forget(doc["id"])
             except Exception:
-                logging.getLogger("rag").warning("Document cleanup pending; retry on next operation or restart")
+                logging.getLogger("rag").warning(
+                    "Document cleanup pending; retry on next operation or restart"
+                )
                 return False
         return True
 
@@ -231,6 +270,8 @@ class Documents:
         for path in (self.catalog.root / "uploads").iterdir():
             if path.is_file() and str(path) not in paths:
                 path.unlink()
+
+
 if __name__ == "__main__":
     import resource
 
